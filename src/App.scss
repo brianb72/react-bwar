@@ -6,12 +6,17 @@
       "header"
       "content"
       "footer";
-  grid-template-rows: 2rem 1fr 3rem;
+  grid-template-rows: 3rem 1fr 3rem;
   overflow: hidden;
 
   .page-header {
       grid-area: header;
       background-color: black;
+
+      span {
+        color: white;
+        padding-left: 1rem;        
+      }
   }
 
   .page-content {

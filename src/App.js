@@ -1,25 +1,41 @@
 import { useEffect, useRef, useMemo } from "react";
 import { SVG } from "@svgdotjs/svg.js";
+import "@svgdotjs/svg.panzoom.js";
 import "./App.scss";
 
 /* Demonstrate basic SVG.JS usage in React */
 
 function App() {
-  const SVGWrapperRefElement = useRef(null);
-  const SVGContainer = useMemo(() => SVG(), []);
+  /** Create the main SVG container that sits on the DOM */
+  const createSVGContainer = () => {
+    // Create a document with a viewbox and panzoom
+    const doc = SVG()
+      .size(1000, 1000)
+      .viewbox("0 0 1000 1000")
+      .panZoom({ zoomMin: 0.25, zoomMax: 20, zoomFactor: 0.15 });
 
-  /** Adds 5 squares at random positions each time button is pressed */
-  const draw = () => {
-    for (let i = 0; i < 5; ++i) {
-      const x = Math.floor(Math.random() * 1900);
-      const y = Math.floor(Math.random() * 1000);
-      SVGContainer.add(SVG().rect(100, 100).move(x, y).fill("#f06"));
-    }
+    // Fill the entire SVG with a background rect
+    doc.rect(1000, 1000).fill("#555");
+
+    // Add a double click handler to draw a circle
+    doc.dblclick((e) => {
+      // .point() converts page coordinate to SVG coordinate including transforming for panZoom
+      const p = doc.point(e.pageX, e.pageY);
+      doc
+        .circle(50, 50)
+        .move(p.x - 25, p.y - 25)
+        .fill("#f06");
+    });
+    return doc;
   };
+
+  const SVGWrapperRefElement = useRef(null);
+  const SVGContainer = useMemo(() => createSVGContainer(), []);
 
   /** Clears all squares from the SVG */
   const clear = () => {
     SVGContainer.clear();
+    SVGContainer.rect(1000, 1000).fill("#555");
   };
 
   /* If the ref that points to the target div changes, or the memo that points to the SVG changes, add the SVG to the div. */
@@ -36,8 +52,8 @@ function App() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <button onClick={draw}>Draw</button>
         <button onClick={clear}>Clear</button>
+        <span>Dblclick: Place Circles, Drag: Pan, MouseWheel: Zoom</span>
       </div>
       <div className="page-content">
         <div ref={SVGWrapperRefElement} />

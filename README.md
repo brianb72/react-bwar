@@ -10,6 +10,12 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Update History
 
+## [2] SVG panning and zooming
+* Import the SVG.PANZOOM.JS plugin
+* Create an SVG document with a large square
+* Double click to add a circle at click point
+* Pan and zoom works with mouse or touch 
+
 ## [1] Project creation and initial setup
 * Create a simple "header content footer" layout
 * Use sass styling
