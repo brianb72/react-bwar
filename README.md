@@ -10,6 +10,10 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Update History
 
+## [3] BWAR basic layout
+* Created BWARController and BWARView
+* Can attach BWARView to target div and load SVG
+
 ## [2] SVG panning and zooming
 * Import the SVG.PANZOOM.JS plugin
 * Create an SVG document with a large square
