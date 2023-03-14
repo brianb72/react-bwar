@@ -8,6 +8,7 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Livedemo
 
+* https://vocal-puppy-27b12a.netlify.app/
 
 # Screenshot
 
