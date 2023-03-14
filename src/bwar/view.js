@@ -1,8 +1,9 @@
 import { SVG } from "@svgdotjs/svg.js";
 import { Coordinates } from "./coordinates";
-import './shared-types.js'
+import { TerrainData } from "./models";
+import "./shared-types.js";
 
-const HEXPIXELRADIUS = 57;  // Sets size of hexes in pixels
+const HEXPIXELRADIUS = 57; // Sets size of hexes in pixels
 
 export class BWARView {
   /**
@@ -12,11 +13,12 @@ export class BWARView {
    * @param {number} mapHexHeight Number of hexes tall
    * @param {Function} setLastHexClicked React useState() setter
    */
-  constructor(bwar, mapHexWidth, mapHexHeight, setLastHexClicked) {
+  constructor(controller, model, mapHexWidth, mapHexHeight, setLastHexClicked) {
     console.log(
       `   ...BWARView Constructor mapSize: ${mapHexWidth} x ${mapHexHeight}`
     );
-    this.bwar = bwar; // Handle back to controller this view is attached to
+    this.controller = controller; // Handle back to controller this view is attached to
+    this.model = model;
     this.mapHexWidth = mapHexWidth;
     this.mapHexHeight = mapHexHeight;
     this.setLastHexClicked = setLastHexClicked;
@@ -67,8 +69,6 @@ export class BWARView {
     return this.svgGroups.svgContainer;
   }
 
-
-
   /* ************************************************************************
         Creation and setup
    ************************************************************************ */
@@ -94,7 +94,10 @@ export class BWARView {
       this.lastHexClicked = hexCoord;
       if (hexCoord && this.setLastHexClicked) {
         this.drawCircle(x, y, 20, 20, "#0A0");
-        this.setLastHexClicked(`${hexCoord.x}, ${hexCoord.y}`);
+        const hex = this.model.getHex(hexCoord);
+        this.setLastHexClicked(
+          `${hexCoord.x}, ${hexCoord.y}, ${TerrainData[hex.terrainId].name}`
+        );
       } else {
         this.drawRect(x, y, 15, 15, "#A00");
         this.setLastHexClicked(undefined);
@@ -117,20 +120,22 @@ export class BWARView {
     // Walk the map and create each hex
     for (let hexX = 0; hexX < g.mapHexWidth; ++hexX) {
       for (let hexY = 0; hexY < g.mapHexHeight; ++hexY) {
-
+        const hexCoord = Coordinates.makeCart(hexX, hexY);
         // Calculate where it is
-        const hexPixelOrigin = this.hexToPixel(
-          Coordinates.makeCart(hexX, hexY)
-        );
+        const hexPixelOrigin = this.hexToPixel(hexCoord);
         const hexPixelCenter = Coordinates.makeCart(
           hexPixelOrigin.x - g.hexPixelWidth / 2,
           hexPixelOrigin.y - g.hexPixelHeight / 2
         );
 
+        // Get the hex from the model
+        const hex = this.model.getHex(hexCoord);
+        const fillColor = TerrainData[hex.terrainId].color;
+
         // Draw the hex outline
         gr.hexesBase
           .polygon(g.hexPixelCorners)
-          .fill("White")
+          .fill(fillColor)
           .stroke({ width: 1, color: "Black" })
           .move(hexPixelCenter.x, hexPixelCenter.y);
 
@@ -153,13 +158,10 @@ export class BWARView {
     }
   }
 
-  
-  
-  
   /* ************************************************************************
         Conversion Functions
    ************************************************************************ */
-  
+
   /**
    * Converts a pixel coordinate to a hex coordinate
    * @param {CartCoordinate} pixelCoord Pixel coordinate to be converted to hex coordinate
@@ -199,9 +201,6 @@ export class BWARView {
     const { x, y } = hexCoord;
     return x >= 0 && x < this.mapHexWidth && y >= 0 && y < this.mapHexHeight;
   }
-
-
-
 
   /* ************************************************************************
         Misc utility

@@ -7,7 +7,7 @@ import { BWARController } from "./bwar/controller";
 function App() {
   const SVGWrapperRefElement = useRef(null);
   const [lastHexClicked, setLastHexClicked] = useState(undefined);
-  const memoBWAR = useMemo(() => new BWARController(5,5, setLastHexClicked), []);
+  const memoBWAR = useMemo(() => new BWARController(7,7 , setLastHexClicked), []);
 
   // If the ref to the div changes, reattach BWAR
   useEffect(() => {
@@ -28,8 +28,7 @@ function App() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <span>Pan and zoom, double click place mark</span>
-        <span className='last-clicked'>Last hex clicked: { 
+        <span className='last-clicked'>Dblclick a Hex: { 
           memoBWAR && lastHexClicked ?
           lastHexClicked : "None"
           

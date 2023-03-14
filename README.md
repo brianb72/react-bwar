@@ -12,10 +12,15 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Screenshot
 
-![screenshot](./Images/update04.png "update #4")
+![screenshot](./Images/update05.png "update #5")
 
 
 # Update History
+
+## [5] Created model, map array, terrain types
+* Model holds map and unit list
+* Terrain types with draw colors and movement costs
+* Clicking a hex identifies terrain type
 
 ## [4] Drawing and selecting hexes
 * Create coordinate system class
