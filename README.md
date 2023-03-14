@@ -2,13 +2,28 @@
 
 A rewrite of my old BWAR project that converts it into a React application.
 
-## Resources
-
-### SVG.JS 
+# Documentation
 * https://svgjs.dev/docs/3.0/
+* https://www.redblobgames.com/grids/hexagons/
+
+# Livedemo
+
+
+# Screenshot
+
+![screenshot](./Images/update04.png "update #4")
 
 
 # Update History
+
+## [4] Drawing and selecting hexes
+* Create coordinate system class
+* Convert between pixel to hex to pixel 
+* Draw a hex grid
+* Double click a hex to select
+* Show coordinate of clicked hex
+* Use green circle to mark valid hex click
+* Use red circle to mark off map click
 
 ## [3] BWAR basic layout
 * Created BWARController and BWARView

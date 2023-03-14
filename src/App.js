@@ -1,15 +1,15 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import "./App.scss";
-import { BWARController } from "./bwar/bwar";
+import { BWARController } from "./bwar/controller";
 
 /* Demonstrate basic SVG.JS usage in React */
 
 function App() {
-  console.log("=== APP RENDER ===");
-
   const SVGWrapperRefElement = useRef(null);
-  const memoBWAR = useMemo(() => new BWARController(5,5), []);
+  const [lastHexClicked, setLastHexClicked] = useState(undefined);
+  const memoBWAR = useMemo(() => new BWARController(5,5, setLastHexClicked), []);
 
+  // If the ref to the div changes, reattach BWAR
   useEffect(() => {
     console.log("useEffect[SVGWrapperRefElement]");
     if (
@@ -22,13 +22,18 @@ function App() {
     } else {
       console.log("   ...did not add SVG");
     }
-  }, [SVGWrapperRefElement]);
+  }, [SVGWrapperRefElement, memoBWAR]);
 
 
   return (
     <div className="page-container">
       <div className="page-header">
-        <span>Pan and zoom, double click place circle</span>
+        <span>Pan and zoom, double click place mark</span>
+        <span className='last-clicked'>Last hex clicked: { 
+          memoBWAR && lastHexClicked ?
+          lastHexClicked : "None"
+          
+        }</span>
       </div>
       <div className="page-content">
         <div ref={SVGWrapperRefElement} />
