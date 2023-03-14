@@ -62,7 +62,7 @@ class UnitStack {
 
   /** Returns the top unit on the stack, or undefined if empty */
   getTopUnitId() {
-    if (this.unitArray.length == 0) {
+    if (this.unitArray.length === 0) {
       return undefined;
     }
     return this.unitArray[this.unitArray.length - 1];

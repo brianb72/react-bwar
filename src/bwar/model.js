@@ -1,4 +1,4 @@
-import { Unit, Hex, TerrainNames } from "./models.js";
+import { Hex, TerrainNames } from "./models.js";
 import { Coordinates } from "./coordinates";
 import "./shared-types.js";
 
