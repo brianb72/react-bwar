@@ -28,4 +28,11 @@
  * @property {CartCoordinate} hexCoord Coordinates of hex unit is in
  * @property {number} unitId Unit Id
  * @property {Object} hexSVG SVG Handle to hex drawn on view
+ * 
+ * @typedef {Object} TerrainData
+ * @property {string} name Name of terrain
+ * @property {string} color "#RGB" color to fill hex
+ * @property {number} moveCost Cost to move through the hex for the pathfinding algorithm
+ * 
+ * 
 */

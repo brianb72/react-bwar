@@ -8,16 +8,17 @@ const HEXPIXELRADIUS = 57; // Sets size of hexes in pixels
 export class BWARView {
   /**
    * Constructor
-   * @param {Object} bwar Instance of BWAR that the view will work with
+   * @param {Object} controller The controller this view is attached to
+   * @param {Object} model The model to be used by this view
    * @param {number} mapHexWidth Number of hexes wide
    * @param {number} mapHexHeight Number of hexes tall
-   * @param {Function} setLastHexClicked React useState() setter
+   * @param {Function} setLastHexClicked React useState() setter to update text on DOM
    */
   constructor(controller, model, mapHexWidth, mapHexHeight, setLastHexClicked) {
     console.log(
       `   ...BWARView Constructor mapSize: ${mapHexWidth} x ${mapHexHeight}`
     );
-    this.controller = controller; // Handle back to controller this view is attached to
+    this.controller = controller;
     this.model = model;
     this.mapHexWidth = mapHexWidth;
     this.mapHexHeight = mapHexHeight;
@@ -42,6 +43,11 @@ export class BWARView {
         [hexPixelWidth * 0.25, 0],
         [hexPixelWidth * 0.75, 0],
       ],
+      unitCounters: {
+        pixelWidth: 64,
+        pixelHeight: 56,
+        rounding: 6,
+      },
     };
 
     // Holds the main svgContainer and all child groups
@@ -49,6 +55,7 @@ export class BWARView {
       svgContainer: undefined, // The main SVG() object attached to the DOM
       hexesBase: undefined, // Hex outlines
       hexesCoords: undefined, // Hex coordinate text
+      unitsBase: undefined, // Unit Counters
     };
 
     // Create the SVG layer and the initial view, on large maps this may be expensive
@@ -93,13 +100,12 @@ export class BWARView {
       const hexCoord = this.pixelToHex(Coordinates.makeCart(x, y));
       this.lastHexClicked = hexCoord;
       if (hexCoord && this.setLastHexClicked) {
-        this.drawCircle(x, y, 20, 20, "#0A0");
         const hex = this.model.getHex(hexCoord);
         this.setLastHexClicked(
           `${hexCoord.x}, ${hexCoord.y}, ${TerrainData[hex.terrainId].name}`
         );
+        this.controller.moveUnitIdToHexCoord(1, hexCoord);
       } else {
-        this.drawRect(x, y, 15, 15, "#A00");
         this.setLastHexClicked(undefined);
       }
     });
@@ -116,6 +122,7 @@ export class BWARView {
     this.svgGroups.svgContainer.clear();
     gr.hexesBase = gr.svgContainer.group().attr("id", "hexsBase");
     gr.hexesCoords = gr.svgContainer.group().attr("id", "hexsCoords");
+    gr.unitsBase = gr.svgContainer.group().attr("id", "unitsBase");
 
     // Walk the map and create each hex
     for (let hexX = 0; hexX < g.mapHexWidth; ++hexX) {
@@ -159,47 +166,179 @@ export class BWARView {
   }
 
   /* ************************************************************************
+        Unit counters
+   ************************************************************************ */
+
+  /**
+   * Creates unit counters for all units in the model
+   */
+  createUnitCountersForAllUnits() {
+    const unitIds = this.model.getAllUnitIds();
+    if (!unitIds) {
+      // testing
+      console.log(`BWARView.createUnitCountersForAllUnits(): !unitIds`);
+    }
+    console.log(`Creating ${unitIds.lenght} unit counters.`);
+    for (const unitId of unitIds) {
+      this.createUnitCounter(unitId);
+    }
+  }
+
+  /**
+   * Draws a unit counter for a unit on the view
+   * @param {UnitId} unitId Id of Unit
+   * @throws {Error} unitId invalid, unit coord invalid or off map, SVG layer already exists, target hex not found
+   */
+  createUnitCounter(unitId) {
+    const unit = this.model.getUnit(unitId);
+    if (!unit || !Number.isInteger(unit?.unitId)) {
+      throw new Error(
+        `BWARView.createUnitCounter(): Invalid unit [${unitId}] [${unit}]`
+      );
+    }
+
+    if (!this.isHexOnMap(unit.hexCoord)) {
+      throw new Error(
+        `BWARCreateView.createUnitCounter(): Unit not on map or invalid coord [${unit?.hexCoord?.x}, ${unit?.hexCoord?.y}]`
+      );
+    }
+
+    // Get a ref to the svgLayers base and create it
+    if (unit.svgLayers.base !== undefined) {
+      throw new Error(
+        `BWARView.createUnitCounter(): SVG base layer already exists for ${unitId}`
+      );
+    }
+
+    // Get the target hex pixel coordinates
+    const pixelTargetHex = this.hexToPixel(unit.hexCoord);
+    if (pixelTargetHex === undefined) {
+      throw new Error(
+        `BWARView.createUnitCounter(): Unit target hex cannot be found [${unit.hexCoord}] [${pixelTargetHex}]`
+      );
+    }
+
+    // Create a new SVG group to hold the unit counter
+    unit.svgLayers.base = this.svgGroups.unitsBase.group().attr("id", unitId);
+
+    // Draw the unit counter onto the SVG group
+    const gu = this.geometry.unitCounters;
+    unit.svgLayers.base
+      .rect(gu.pixelWidth, gu.pixelHeight)
+      .radius(gu.rounding)
+      .stroke({ color: "Black", width: 1 })
+      .fill("Orange")
+      .move(
+        pixelTargetHex.x - gu.pixelWidth / 2,
+        pixelTargetHex.y - gu.pixelHeight / 2
+      );
+  }
+
+  /**
+   * Moves an on map unit in the view to another hex
+   * @param {UnitId} unitId Id of unit to move
+   * @param {CartCoordinate} targetHexCoord Coordinate of hex to move to
+   * @throws {Error} UnitId not found, target hex invalid or not found
+   */
+  moveUnitIdToHexCoord(unitId, targetHexCoord) {
+    // Get the unit and source hex coordinates
+    const unit = this.model.getUnit(unitId);
+    if (unit === undefined) {
+      throw new Error(
+        `BWARView.moveUnitIdToHexCoord(): UnitId cannot be found [${unitId}]]`
+      );
+    }
+
+    // Get the pixel coordinates of target hex
+    const pixelCoord = this.hexToPixel(targetHexCoord);
+    if (pixelCoord === undefined) {
+      throw new Error(
+        `BWARView.moveUnitIdToHexCoord(): targetHexCoord not on map [${targetHexCoord}]]`
+      );
+    }
+
+    // Move the unit on the view to the target hex
+    unit.svgLayers.base.move(
+      pixelCoord.x - this.geometry.unitCounters.pixelWidth / 2,
+      pixelCoord.y - this.geometry.unitCounters.pixelHeight / 2
+    );
+  }
+
+  /* ************************************************************************
         Conversion Functions
    ************************************************************************ */
 
   /**
    * Converts a pixel coordinate to a hex coordinate
    * @param {CartCoordinate} pixelCoord Pixel coordinate to be converted to hex coordinate
-   * @returns CartCoordinate Hex coordinate of pixel coordinate
+   * @returns {CartCoordinate | undefined} Hex coordinate of pixel coordinate
+   * @throws {Error} hexCoord invalid
    */
   pixelToHex(pixelCoord) {
-    const { x, y } = pixelCoord;
-    let q = ((2 / 3) * x) / HEXPIXELRADIUS;
-    let r = ((-1 / 3) * x + (Math.sqrt(3) / 3) * y) / HEXPIXELRADIUS;
-    let s = -q - r;
-    const hexCoord = Coordinates.roundCubeToCart(Coordinates.makeCube(q, r, s));
-    return this.isHexOnMap(hexCoord) ? hexCoord : undefined;
+    try {
+      const { x, y } = pixelCoord;
+      let q = ((2 / 3) * x) / HEXPIXELRADIUS;
+      let r = ((-1 / 3) * x + (Math.sqrt(3) / 3) * y) / HEXPIXELRADIUS;
+      let s = -q - r;
+      const hexCoord = Coordinates.roundCubeToCart(
+        Coordinates.makeCube(q, r, s)
+      );
+      return this.isHexOnMap(hexCoord) ? hexCoord : undefined;
+    } catch {
+      throw new Error(
+        `BWARView.pixelToHex(): pixelCoord is invalid [${pixelCoord}]]`
+      );
+    }
   }
 
   /**
-   *
+   * Converts a hex coordinate to a pixel coordinate
    * @param {CartCoordinate} hexCoord Hex coordinate to be converted to pixel coordinate
-   * @returns CartCoordinate Pixel coordinate of hex coordinate
+   * @returns {CartCoordinate | undefined} Pixel coordinate of hex coordinate, undefined if invalid coordinate or off map
+   * @throws {Error} hexCoord invalid
    */
   hexToPixel(hexCoord) {
-    if (!this.isHexOnMap(hexCoord)) {
-      return undefined;
+    try {
+      // This will check if the coordinae is valid and may throw
+      if (!this.isHexOnMap(hexCoord)) {
+        return undefined;
+      }
+    } catch {
+      // Catch and rethrow so our message comes from hexToPixel instead of isHexOnMap
+      throw new Error(
+        `BWARView.hexToPixel(): hexCoord is invalid [${hexCoord}]]`
+      );
     }
-    const { q, r } = Coordinates.cartToCube(hexCoord);
-    return Coordinates.makeCart(
-      HEXPIXELRADIUS * ((3 / 2) * q),
-      HEXPIXELRADIUS * ((Math.sqrt(3) / 2) * q + Math.sqrt(3) * r)
-    );
+
+    try {
+      const { q, r } = Coordinates.cartToCube(hexCoord);
+      return Coordinates.makeCart(
+        HEXPIXELRADIUS * ((3 / 2) * q),
+        HEXPIXELRADIUS * ((Math.sqrt(3) / 2) * q + Math.sqrt(3) * r)
+      );
+    } catch {
+      // Should never happen?
+      throw new Error(
+        `BWARView.hexToPixel(): error converting to cube [${hexCoord}]]`
+      );
+    }
   }
 
   /**
    * Tests if a hex coordinate is on the map
    * @param {CartCoordinate} hexCoord
    * @returns boolean True if coordinate is on map
+   * @throws {Error} hexCoord invalid
    */
   isHexOnMap(hexCoord) {
-    const { x, y } = hexCoord;
-    return x >= 0 && x < this.mapHexWidth && y >= 0 && y < this.mapHexHeight;
+    try {
+      const { x, y } = hexCoord;
+      return x >= 0 && x < this.mapHexWidth && y >= 0 && y < this.mapHexHeight;
+    } catch {
+      throw new Error(
+        `BWARView.isHexOnMap(): hexCoord is invalid [${hexCoord}]]`
+      );
+    }
   }
 
   /* ************************************************************************

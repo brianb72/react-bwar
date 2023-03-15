@@ -1,6 +1,6 @@
 import { UnitStack } from "./unit-stack";
 
-// Id of 0 is invalid, 1 is first valid
+// For all Id:  0 is invalid, 1 is first valid
 
 export const TerrainData = {
   0: { name: "Invalid", color: "None", moveCost: undefined },
@@ -21,7 +21,7 @@ export const TerrainNames = {
 };
 
 export function Unit(_unit) {
-  this.unitId = _unit.unitId | 0;
+  this.unitId = _unit.unitId || 0;
   this.hexCoord = _unit.hexCoord;
   this.svgLayers = {
     base: undefined, // Base group holding the entire counter
@@ -30,7 +30,7 @@ export function Unit(_unit) {
 
 export function Hex(_hex) {
   this.hexCoord = _hex.hexCoord;
-  this.terrainId = _hex.terrainId | 0;
+  this.terrainId = _hex.terrainId || 0;
   this.hexSVG = undefined; // Handle to hex SVG object
   this.unitStack = new UnitStack();
 }

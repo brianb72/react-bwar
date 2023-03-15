@@ -3,7 +3,7 @@
 A rewrite of my old BWAR project that converts it into a React application.
 
 # Documentation
-* https://svgjs.dev/docs/3.0/
+* https://svgjs.dev/docs/3.1/
 * https://www.redblobgames.com/grids/hexagons/
 
 # Livedemo
@@ -12,10 +12,15 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Screenshot
 
-![screenshot](./Images/update05.png "update #5")
+![screenshot](./Images/update06.png "update #5")
 
 
 # Update History
+
+## [6] Unit drawing and moving
+* Create a unit and add to unit list
+* Draw unit counter to view
+* Clicking a hex moves unit to that hex
 
 ## [5] Created model, map array, terrain types
 * Model holds map and unit list

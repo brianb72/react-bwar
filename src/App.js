@@ -28,7 +28,7 @@ function App() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <span className='last-clicked'>Dblclick a Hex: { 
+        <span className='last-clicked'>Hex: { 
           memoBWAR && lastHexClicked ?
           lastHexClicked : "None"
           
