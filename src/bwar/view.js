@@ -104,7 +104,7 @@ export class BWARView {
         this.setLastHexClicked(
           `${hexCoord.x}, ${hexCoord.y}, ${TerrainData[hex.terrainId].name}`
         );
-        this.controller.moveUnitIdToHexCoord(1, hexCoord);
+        this.controller.moveUnitIdToHexCoord(1, hexCoord, true);
       } else {
         this.setLastHexClicked(undefined);
       }
@@ -235,7 +235,7 @@ export class BWARView {
   }
 
   /**
-   * Moves an on map unit in the view to another hex
+   * Moves an on map unit in the view to the taret hex with no animation
    * @param {UnitId} unitId Id of unit to move
    * @param {CartCoordinate} targetHexCoord Coordinate of hex to move to
    * @throws {Error} UnitId not found, target hex invalid or not found
@@ -338,6 +338,75 @@ export class BWARView {
       throw new Error(
         `BWARView.isHexOnMap(): hexCoord is invalid [${hexCoord}]]`
       );
+    }
+  }
+
+  /* ************************************************************************
+        Animation Functions
+   ************************************************************************ */
+
+  /**
+   * Moves a unit along a path of steps. If the unit is initiall off map it will
+   * appear on the first step and walk the path. All steps must be on map.
+   * @param {UnitId} unitId Id of unit to move
+   * @param {Array.<CartCoordinate>} movePath Array of hex coordinates to walk
+   * @throw {Error} movePath must have 2 steps, unitId not found, unit has no SVG, step invalid or offmap
+   */
+  animationMoveUnitOnPath(unitId, movePath) {
+    if (!movePath || movePath.length < 2) {
+      throw new Error(
+        `BWARView.animationMoveUnitOnPath(): movePath must have at least 2 steps`
+      );
+    }
+
+    // Get the unit
+    const unit = this.model.getUnit(unitId);
+    if (unit === undefined) {
+      throw new Error(
+        `BWARView.animationMoveUnitOnPath(): unitId not found [${unitId}]`
+      );
+    }
+
+    // Get the unit's base SVG layer
+    const unitSvg = unit.svgLayers.base;
+    if (unitSvg === undefined) {
+      throw new Error(
+        `BWARView.animationMoveUnitOnPath(): unit has no SVG [${unit}]`
+      );
+    }
+
+    // Get the unit's source hex so the source unitStack can be visually adjusted.
+    // An invalid souce hex will silently be ignored, just walk the unit along movePath and update thet target hex unitStack at the end.
+    const sourceHexCoord = unit.hexCoord;
+
+    // If an animation timeline exists on the unit's SVG, finish it. This will also create a timeline if it doesn't exist.
+    unitSvg.timeline().finish();
+
+    // Walk the move path and process each move. Skip the first step of move path if the unit's source hex is the
+    // first step of move path otherwise use it to make the invalid hex unit appear in the first hex of movePath and start walking.
+    const startStep = this.isHexOnMap(sourceHexCoord) ? 0 : 1;
+    const g = this.geometry;
+
+    for (let step = startStep; step < movePath.length; ++step) {
+      // Get the pixel coordinates of the origin point of this step's hex, the hexToPixel
+      // function will return undefined if any steps are offmap, all steps must be on map
+      const pixelOrigin = this.hexToPixel(movePath[step]);
+      if (pixelOrigin === undefined) {
+        throw new Error(
+          `BWARView.animationMoveUnitOnPath(): movePath has invalid or offmap step [${movePath[step]}]`
+        );
+      }
+
+      // Calculate the point needed to center the unit counter in the hex
+      const pixelCentered = Coordinates.makeCart(
+        pixelOrigin.x - g.unitCounters.pixelWidth * 0.5,
+        pixelOrigin.y - g.unitCounters.pixelHeight * 0.5
+      );
+
+      // Add an animation step to the timeline that will walk the unit one step further along the path
+      unitSvg
+        .animate({ duration: 100, swing: true, wait: 5, delay: 0 })
+        .move(pixelCentered.x, pixelCentered.y);
     }
   }
 

@@ -1,7 +1,7 @@
 import { BWARView } from "./view";
 import { BWARModel } from "./model";
 import { Coordinates } from "./coordinates";
-import { TerrainNames, Unit } from "./models";
+import { TerrainNames, TerrainData, Unit } from "./models";
 
 import "@svgdotjs/svg.panzoom.js";
 import "./shared-types.js";
@@ -88,16 +88,43 @@ export class BWARController {
   /**
    * Moves a unit in both the view and model
    * @param {UnitId} unitId Id of unit to move
-   * @param {CartCoordinate} hexCoord Hex coordinate to move unit to
+   * @param {CartCoordinate} targetHexCoord Hex coordinate to move unit to
    */
-  moveUnitIdToHexCoord(unitId, hexCoord) {
+  moveUnitIdToHexCoord(unitId, targetHexCoord, animate = true) {
+    const unit = this.model.getUnit(unitId);
+    if (!unit) {
+      throw new Error(
+        `BWARController.moveUnitIdtoHexCoord(): unitId not found [${unitId}]`
+      );
+    }
+
+    const sourceHexCoord = unit.hexCoord;
+
+    // Ignore if the source and target are the same
+    if (Coordinates.isCoordsEqual(sourceHexCoord, targetHexCoord)) {
+      return;
+    }
+
+    // Pathfind to target, if path < 2 a route could not be found and the move is ignored
+    const pathFindingHexCoords = this.model.pathfindBetweenHexes(
+      sourceHexCoord,
+      targetHexCoord
+    );
+    if (pathFindingHexCoords.length < 2) {
+      return;
+    }
+
     if (this.view) {
-      // Move the unit in the view
-      this.view.moveUnitIdToHexCoord(unitId, hexCoord);
+      if (animate) {
+        // console.log(`BWARController pathfinding between [${sourceHexCoord.x}, ${sourceHexCoord.y}] and [${targetHexCoord.x}, ${targetHexCoord.y}]`)
+        this.view.animationMoveUnitOnPath(unitId, pathFindingHexCoords);
+      } else {
+        this.view.moveUnitIdToHexCoord(unitId, targetHexCoord);
+      }
     }
 
     // Move the unit in the model
-    this.model.moveUnitIdToHexCoord(unitId, hexCoord);
+    this.model.moveUnitIdToHexCoord(unitId, targetHexCoord);
   }
 
   /* ************************************************************************
@@ -114,5 +141,6 @@ export class BWARController {
     const hexCoord = Coordinates.makeCart(x, y);
     const hex = this.model.getHex(hexCoord);
     hex.terrainId = terrainId;
+    hex.moveCost = TerrainData[terrainId].moveCost;
   }
 }

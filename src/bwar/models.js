@@ -4,11 +4,11 @@ import { UnitStack } from "./unit-stack";
 
 export const TerrainData = {
   0: { name: "Invalid", color: "None", moveCost: undefined },
-  1: { name: "Open", color: "White", moveCost: 1 },
-  2: { name: "Grass", color: "LightGreen", moveCost: 2 },
-  3: { name: "Hill", color: "SandyBrown", moveCost: 3 },
+  1: { name: "Open", color: "White", moveCost: 0 },
+  2: { name: "Grass", color: "LightGreen", moveCost: 5 },
+  3: { name: "Hill", color: "SandyBrown", moveCost: 10 },
   4: { name: "Road", color: "Gray", moveCost: 1 },
-  5: { name: "Water", color: "SkyBlue", moveCost: 1 },
+  5: { name: "Water", color: "SkyBlue", moveCost: undefined },
 };
 
 export const TerrainNames = {
@@ -31,6 +31,7 @@ export function Unit(_unit) {
 export function Hex(_hex) {
   this.hexCoord = _hex.hexCoord;
   this.terrainId = _hex.terrainId || 0;
+  this.moveCost = _hex.moveCost || undefined;
   this.hexSVG = undefined; // Handle to hex SVG object
   this.unitStack = new UnitStack();
 }

@@ -25,7 +25,7 @@ describe("Coordinates", () => {
   });
 
   test('Coordinates.isCoordCube({ f: 5 }) should result in "false"', () => {
-    expect(Coordinates.isCoordCube({ f: 5})).toBe(false);
+    expect(Coordinates.isCoordCube({ f: 5 })).toBe(false);
   });
 
   test('Coordinates.isCoordCart(null) should result in "false"', () => {
@@ -34,6 +34,39 @@ describe("Coordinates", () => {
 
   test('Coordinates.isCoordCube(5) should result in "false"', () => {
     expect(Coordinates.isCoordCube(5)).toBe(false);
+  });
+
+
+
+
+  test('Coordinates.hexDistance({x: 0, y: 0}, {x: 2, y: 1}) should result in 2', () => {
+    expect(Coordinates.hexDistance({x: 0, y:0}, {x: 2, y: 1})).toBe(2);
+  });
+
+  test('Coordinates.hexDistance({ f: 1 }, { f: 3 }) should result in undefined', () => {
+    expect(Coordinates.hexDistance({ f: 1 }, { f: 3 })).toBe(undefined);
+  });
+
+
+  // Note: The order of returned objects is based on the order of Coordinates.Directions
+  test('Coordinates.neighborsOf({ x: 1, y: 1 }) should result in correct neighbors', () => {
+    expect(Coordinates.neighborsOf({ x: 1, y: 1 })).toStrictEqual([
+      { x: 1, y: 0 },
+      { x: 2, y: 0 },
+      { x: 2, y: 1 },
+      { x: 1, y: 2 },
+      { x: 0, y: 1 },
+      { x: 0, y: 0 },
+    ]);
+  });
+
+  test('Coordinates.neighborsWhichDirection({ x: 0, y: 0 }, { x: 1, y: 1 }) should result in 2', () => {
+    expect(Coordinates.neighborsWhichDirection({ x: 0, y: 0 }, { x: 1, y: 1 })).toBe(2);
+  });
+
+
+  test('Coordinates.neighborsWhichDirection({ x: 0, y: 0 }, { x: 5, y: 5 }) should result in undefined', () => {
+    expect(Coordinates.neighborsWhichDirection({ x: 0, y: 0 }, { x: 5, y: 5 })).toBe(undefined);
   });
 
 });

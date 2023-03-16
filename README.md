@@ -17,6 +17,14 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Update History
 
+## [7] Pathfinding and animated moves
+* Least expensive path is found using terrain type for cost
+* Unit movement is animated along each step
+* Road (Gray) is least expensive hex to enter
+* Grass (Green) is average cost
+* Hill (Brown) is most expensive
+* Water (Blue) cannot be entered
+
 ## [6] Unit drawing and moving
 * Create a unit and add to unit list
 * Draw unit counter to view
