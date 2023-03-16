@@ -97,7 +97,7 @@ export class Coordinates {
         return false;
       }
       // Return if x/y values match
-      return cartA.x === cartB.x & cartA.y === cartB.y;
+      return cartA.x === cartB.x && cartA.y === cartB.y;
     } catch {
       // If either coordinates are missing an x or y they are invalid and not equal
       return false;

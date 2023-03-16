@@ -22,7 +22,15 @@ export const TerrainNames = {
 
 export function Unit(_unit) {
   this.unitId = _unit.unitId || 0;
-  this.hexCoord = _unit.hexCoord;
+  this.forceId = _unit.forceId || 0;
+  this.formationId = _unit.formationId || 0;
+  this.name = _unit.name || "";
+  this.hexCoord = { ..._unit.hexCoord };
+  this.unitColors = new CounterColors(_unit.unitColors);
+  this.symbolName = _unit.symbolName;
+  this.unitSize = _unit.unitSize;
+  this.values = { ..._unit.values } || {};
+
   this.svgLayers = {
     base: undefined, // Base group holding the entire counter
   };
@@ -32,6 +40,14 @@ export function Hex(_hex) {
   this.hexCoord = _hex.hexCoord;
   this.terrainId = _hex.terrainId || 0;
   this.moveCost = _hex.moveCost || undefined;
-  this.hexSVG = undefined; // Handle to hex SVG object
+  this.hexSvg = undefined; // Handle to hex SVG object
   this.unitStack = new UnitStack();
+}
+
+
+export function CounterColors(_colors) {
+  this.counterForeground = _colors.counterForeground;
+  this.counterBackground = _colors.counterBackground;
+  this.symbolForeground = _colors.symbolForeground;
+  this.symbolBackground = _colors.symbolBackground;
 }

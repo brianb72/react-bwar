@@ -1,5 +1,6 @@
 import { Hex, TerrainNames, TerrainData } from "./models.js";
 import { Coordinates } from "./coordinates";
+import { OrderOfBattle } from "./order-of-battle"
 import TinyQueue from "tinyqueue";
 import "./shared-types.js";
 
@@ -13,8 +14,8 @@ export class BWARModel {
     this.mapHexWidth = mapHexWidth;
     this.mapHexHeight = mapHexHeight;
 
-    // Create the unit dictionary
-    this.units = {};
+    // Create the order of battle
+    this.oob = new OrderOfBattle();
 
     const defaultHexTerrainId = TerrainNames.Grass;
 
@@ -44,7 +45,7 @@ export class BWARModel {
       return x >= 0 && x < this.mapHexWidth && y >= 0 && y < this.mapHexHeight;
     } catch {
       throw new Error(
-        `BWARModel.isHexOnMap(): hexCoord is invalid [${hexCoord}]]`
+        `BWARModel.isHexOnMap(): hexCoord is invalid [${JSON.stringify(hexCoord)}]]`
       );
     }
   }
@@ -63,42 +64,32 @@ export class BWARModel {
       return this.hexMap[hexCoord.y][hexCoord.x];
     } catch {
       // Never?
-      throw new Error(`BWARModel.getHex(): hexCoord is invalid [${hexCoord}]]`);
+      throw new Error(`BWARModel.getHex(): hexCoord is invalid [${JSON.stringify(hexCoord)}]]`);
     }
   }
 
   /**
-   * Get a UnitModel by UnitId
-   * @param {UnitId} unitId Id of unit to get
-   * @returns {UnitModel | undefined} UnitModel of unitId or undefined if not found
-   */
-  getUnit(unitId) {
-    return this.units[unitId];
-  }
-
-  /**
-   * Gets an array of all UnitId in the unit dictionary
-   * @returns {Array.<number>} Array of UnitId
-   */
-  getAllUnitIds() {
-    return Object.keys(this.units);
-  }
-
-  /**
-   * Add a UnitModel to the unit list
-   * @param {UnitModel} unit Unit to add to the list
+   * Add a unit to a hexes unitStack, does not verify if unit exists in other stacks.
+   * @param {UnitId} unit UnitId to add to the stack
+   * @param {CartCoordinate} targetHexCoord Coordinate of hex to add unit to
    * @throws {Error} Invalid unit, already in units
    */
-  addUnit(unit) {
-    if (!unit || !Number.isInteger(unit.unitId)) {
-      throw new Error(`BWARModel.addUnit(): Invalid unit [${unit}]`);
+  insertUnitIdToUnitStack(unitId, targetHexCoord) {
+    // Test the inputs
+    if (!Number.isInteger(unitId)) {
+      throw new Error(`BWARModel.insertUnitIdToUnitStack(): Invalid unitId [${unitId}]`);
     }
-    if (this.units.hasOwnProperty(unit.unitId)) {
+
+    // Look up the target hex, this will also test targetHexCoord
+    const targetHex = this.getHex(targetHexCoord);
+    if (!targetHex) {
       throw new Error(
-        `BWARModel.addUnit(): Unit is already in units. [${unit}]`
+        `BWARModel.insertUnitIdToUnitStack(): targetHexCoord is not on map or invalid. [${JSON.stringify(targetHexCoord)}]`
       );
     }
-    this.units[unit.unitId] = unit;
+
+    // Add the unitId to the stack
+    targetHex.unitStack.addUnitId(unitId);    
   }
 
   /**
@@ -109,7 +100,7 @@ export class BWARModel {
    */
   moveUnitIdToHexCoord(unitId, targetHexCoord) {
     // Get the unit
-    const unit = this.getUnit(unitId);
+    const unit = this.oob.getUnit(unitId);
     if (unit === undefined) {
       throw new Error(
         `BWARModel.moveUnitIdToHex(): Unit not found [${unitId}]`
@@ -120,7 +111,7 @@ export class BWARModel {
     const sourceHex = this.getHex(unit.hexCoord);
     if (sourceHex === undefined) {
       throw new Error(
-        `BWARModel.moveUnitIdToHex(): Unit source hex found [${unitId.hexCoord}]`
+        `BWARModel.moveUnitIdToHex(): Unit source hex found [${JSON.stringify(unitId.hexCoord)}]`
       );
     }
 
@@ -128,7 +119,7 @@ export class BWARModel {
     const targetHex = this.getHex(targetHexCoord);
     if (targetHex === undefined) {
       throw new Error(
-        `BWARModel.moveUnitIdToHex(): Unit target hex found [${targetHexCoord}]`
+        `BWARModel.moveUnitIdToHex(): Unit target hex found [${JSON.stringify(targetHexCoord)}]`
       );
     }
 
@@ -154,14 +145,14 @@ export class BWARModel {
     // Source hex must be valid and be on map
     if (!this.isHexOnMap(sourceHexCoord)) {
       throw new Error(
-        `BWARModel.moveUnitIdToHex(): Source hex not on map [${sourceHexCoord}]`
+        `BWARModel.moveUnitIdToHex(): Source hex not on map [${JSON.stringify(sourceHexCoord)}]`
       );
     }
 
     // Target hex must be valid and be on map
     if (!this.isHexOnMap(targetHexCoord)) {
       throw new Error(
-        `BWARModel.moveUnitIdToHex(): Target hex not on map [${targetHexCoord}]`
+        `BWARModel.moveUnitIdToHex(): Target hex not on map [${JSON.stringify(targetHexCoord)}]`
       );
     }
 
@@ -213,21 +204,23 @@ export class BWARModel {
       // Get a list of neighboring hex coordinates and loop through them
       var neighborList = Coordinates.neighborsOf(curHexCoord);
       for (let i = 0, le = neighborList.length; i < le; ++i) {
-        // Get the hex for the current neighbor coordinates
+        // Get the next neighbor coordinate from the list
         const neiCoord = neighborList[i];
 
+        // Neighborlist may contain off map hexes, ignore them
         if (!this.isHexOnMap(neiCoord)) {
           continue;
         }
 
+        // Get the neighbor hex
         let hexNei = this.getHex(neiCoord);
         if (hexNei === undefined) {
           throw new Error(
-            `BWARModel.pathfindBetweenHexes(): Could not get neighboring hex ${neiCoord.x},${neiCoord.y}`
+            `BWARModel.pathfindBetweenHexes(): Could not get neighboring hex ${JSON.stringify(neiCoord)}`
           );
         }
 
-        // Hexes with undefined movement costs cannot be entered, ignore
+        // If the neighbors movement cost is undefined it cannot be entered, ignore it
         if (hexNei.moveCost === undefined) {
           continue;
         }
@@ -236,38 +229,37 @@ export class BWARModel {
         const neiKey = `${neiCoord.x},${neiCoord.y}`;
         const newCost = dictCostSoFar[curKey] + hexNei.moveCost;
 
-        /* Look up the neighbor hex in the cost dictionary and see if it was
-                 visited in the past with a cheaper cost than newCost. */
+        // Look up the neighbor hex in the cost dictionary to see if it was visited in the past with a cheaper cost
         if (
           dictCostSoFar.hasOwnProperty(neiKey) &&
           newCost >= dictCostSoFar[neiKey]
         ) {
-          /* The hex was visited in the past with a less expensive path than the path
-                     being considered here. Continue and keep the old path. */
+          // This hex was previously visited with a less expensive path, continue and keep the old path information
           continue;
         }
 
-        /* The hex was either not visited, or the path being considered here
-                 has a lower cost. Add/replace the neighbors values in the dictionaries. */
+        // The neighbor hex was either not visited or was previously visited with a more expensive path. Our path will become the new less path.
         dictCostSoFar[neiKey] = newCost;
         dictCameFrom[neiKey] = curHexCoord;
 
-        /* The neighbor hex will be pushed onto the Priority Queue.
-              The priority is newCost + A* Herustic value * directionExtraCost
-              For the priority value a lower value is higher priority. The lowest
-              priority value will be .pop()ed off the queue.
-            directionExtraCost adds a penalty for moving in the same direction
-              two steps in a row. Without this bias, paths that go left/right on
-              the hex map tend to move up as they travel right, then travel down
-              to reach the target. Or down at first, then up. This creates a U shaped
-              path that does not look straight. If two neighbors have the same herustic,
-              their order will be determined by the order that neighborsOf() returns,
-              which encourages moving in the same direction.
-              By adding a penalty to moving in the same direction twice, the path
-              is encouraged to zig/zag as it travels, making left/right paths look
-              more 'straight'
-            Additional biases can be added to adjust the way paths look on the screen.
-        */
+        /*
+          Hexes are pushed onto the priority queue with a priority value.
+          The value is: costOfStep + (A* Heuristic Value)
+          Lower values are considered "less expensive" paths and more desirable.
+          Using the normal algorithm, paths that visually travel left-right tend to look strange if all step costs are equal.
+          Paths will travel NE and go "up", then switch to SE and go "down" to reach the target. "NE NE NE SE SE SE"
+          This will cause the path to be "V" shaped.
+          The reason is because when hexes have the same cost, the algorithm chooses the path that
+          is the earliest hex returned by neighborsOf(). Therefore the order of neighborsOf() is biasing step choice.
+          To fix this, whenever the algorithm tries to move 2 steps in the same direction, a very small
+          cost is added to that step. Normal move costs can be values like 1-10, but the bias can be 0.1.
+          This bias encourages the algorithm to step in different directions each time, so that the
+          step pattern is no longer "NE NE NE SE SE SE" but "NE SE NE SE NE SE". This path look more like a straight horizontal line on the screen.
+          The priority value then becomes: costOfStep + (A* Heuristic Value) + directionBias
+          Additional bias terms can be added if needed to adjust the way that paths appear.
+          The pathfinding engine could also be passed values to control additional bias so the caller
+          could control how the path looks on the screen.
+       */
         let distance = Coordinates.hexDistance(targetHexCoord, neiCoord);
         const neiDirection = Coordinates.neighborsWhichDirection(
           curHexCoord,

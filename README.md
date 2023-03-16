@@ -12,10 +12,17 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Screenshot
 
-![screenshot](./Images/update06.png "update #5")
+![screenshot](./Images/update08.png "update #8")
 
 
 # Update History
+
+## [8] Sides, stacks, and moving multiple units
+* Created order of battle and utility functions
+* OOB tracks sides, forces, formations, and units
+* Unit counters have colors, red vs blue
+* Click a hex to select it and any units
+* Double click a hex to pathfind a selected unit
 
 ## [7] Pathfinding and animated moves
 * Least expensive path is found using terrain type for cost
