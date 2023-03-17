@@ -84,7 +84,7 @@ export class Coordinates {
   }
 
   /**
-   * Tests if two cart coordinates are equal. 
+   * Tests if two cart coordinates are equal.
    * Undefined or invalid coordinates are not equal to anything
    * @param {CartCoordinate} cartA First coordinate to test
    * @param {CartCoordinate} cartB Second coordinate to test
@@ -108,14 +108,16 @@ export class Coordinates {
   // Converting Coordinates Types
 
   /**
-   * Convert a cubic coordinate to a cartesian coordinate. 
+   * Convert a cubic coordinate to a cartesian coordinate.
    * @param {CubeCoordinate} cube
    * @returns {CartCoordinate}
    */
   static cubeToCart(cube) {
     // cube.s is not used
     const { q, r } = cube;
-    if (q === undefined || r === undefined) { return undefined }
+    if (q === undefined || r === undefined) {
+      return undefined;
+    }
     return { x: q, y: r + ((q + (q & 1)) >> 1) };
   }
 
@@ -126,7 +128,9 @@ export class Coordinates {
    */
   static cartToCube(cart) {
     const { x, y } = cart;
-    if (x === undefined || y === undefined) { return undefined }
+    if (x === undefined || y === undefined) {
+      return undefined;
+    }
     const q = x;
     const r = y - ((x + (x & 1)) >> 1);
     return { q: q, r: r, s: -q - r };
@@ -162,6 +166,28 @@ export class Coordinates {
     return this.cubeToCart(this.roundCube(cube));
   }
 
+  /** Linear interpolation of cube1 to cube2 by step
+   * @param {CubeCoordinate} cube1 First cube
+   * @param {CubeCoordinate} cube2 Second cube
+   * @param {number} step Step number
+   * @returns {CubeCoordinate} Resulting coordinate
+   */
+  static lerpCube(cube1, cube2, step) {
+    return this.makeCube(
+      cube1.q + (cube2.q - cube1.q) * step,
+      cube1.r + (cube2.r - cube1.r) * step,
+      cube1.s + (cube2.s - cube1.s) * step
+    );
+  }
+
+  /** Adjust cube by a very small amount to make linear interpolation look better
+   * @param {CubeCoordinate} cube Cube to nudge
+   * @returns {CubeCoordinate} Nudged cube
+   */
+  static nudgeCube(cube) {
+    return this.makeCube(cube.q + 1e-6, cube.r + 1e-6, cube.s + -2e-6);
+  }
+
   // /////////////////////////////////////////////////////////////////////////
   // Coordinate calculations
 
@@ -175,12 +201,15 @@ export class Coordinates {
     try {
       const a = this.cartToCube(sourceHexCoord);
       const b = this.cartToCube(targetHexCoord);
-      return Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs(a.s - b.s));
+      return Math.max(
+        Math.abs(a.q - b.q),
+        Math.abs(a.r - b.r),
+        Math.abs(a.s - b.s)
+      );
     } catch {
       return undefined; // silently ignore errors, caller will handle
     }
   }
-
 
   /**
    * Get an array of hexCoords that are neighbors of sourceHexCoord, some returned hexes may not be on map
@@ -188,16 +217,15 @@ export class Coordinates {
    * @returns {Array.<CartCoordinate>} Coordinates that are neighbors of sourceHexCoord
    */
   static neighborsOf(sourceHexCoord) {
-    const cube = this.cartToCube(sourceHexCoord)
-    let neighbors = []
+    const cube = this.cartToCube(sourceHexCoord);
+    let neighbors = [];
     for (let direction = 0; direction < 6; ++direction) {
-      const d = cubeNeighborDirections[direction]
-      const nei = { q: cube.q + d.q, r: cube.r + d.r, s: cube.s + d.s }
-      neighbors.push(this.cubeToCart(nei))
+      const d = cubeNeighborDirections[direction];
+      const nei = { q: cube.q + d.q, r: cube.r + d.r, s: cube.s + d.s };
+      neighbors.push(this.cubeToCart(nei));
     }
-    return neighbors
+    return neighbors;
   }
-
 
   /**
    * Returns the Directions number needed to travel between sourceHexCoord to targetHexCoord
@@ -238,5 +266,26 @@ export class Coordinates {
       );
       return undefined; // silent failure
     }
+  }
+
+  /** Get an array of hex coordinates between source and target. Some of the returned hexes may be off map.
+   * @property {CartCoordinate} sourceHexCoord Source coordinate
+   * @property {CartCoordinate} targetHexCoord Target coordinate
+   * @returns {Array.<CartCoordinate>} Hexes between source and target
+   */
+  static lineBetweenTwoHexes(sourceHexCoord, targetHexCoord) {
+    const sourceCube = this.nudgeCube(this.cartToCube(sourceHexCoord));
+    const targetCube = this.nudgeCube(this.cartToCube(targetHexCoord));
+    const distance = this.hexDistance(sourceHexCoord, targetHexCoord);  // TODO this calls cartToCube as well
+    const step = 1.0 / Math.max(distance, 1);
+    const hexCoords = [];
+
+    for (let i = 0; i <= distance; ++i) {
+      const stepCube = this.roundCube(
+        this.lerpCube(sourceCube, targetCube, step * i)
+      );
+      hexCoords.push(this.cubeToCart(stepCube));
+    }
+    return hexCoords;
   }
 }

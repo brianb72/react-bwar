@@ -9,6 +9,7 @@ export const TerrainData = {
   3: { name: "Hill", color: "SandyBrown", moveCost: 10 },
   4: { name: "Road", color: "Gray", moveCost: 1 },
   5: { name: "Water", color: "SkyBlue", moveCost: undefined },
+  6: { name: "City", color: "Gold", moveCost: 1 },
 };
 
 export const TerrainNames = {
@@ -18,6 +19,7 @@ export const TerrainNames = {
   Hill: 3,
   Road: 4,
   Water: 5,
+  City: 6,
 };
 
 export function Unit(_unit) {

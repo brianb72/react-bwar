@@ -12,14 +12,19 @@
   .page-header {
       grid-area: header;
       background-color: black;
+      display: grid;
+      grid-template-columns: 70% 30%;
+      align-content: center;
+      justify-items: center;
+
 
       span {
         color: white;
-        padding-left: 1rem;        
+        text-indent: 1rem;
       }
 
-      .last-clicked {
-        font-size: 2rem;
+      .span-message {
+        font-size: 1.4rem;
       }
 
   }

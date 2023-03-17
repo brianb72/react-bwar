@@ -12,10 +12,41 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Screenshot
 
-![screenshot](./Images/update08.png "update #8")
+![screenshot](./Images/update09.png "update #9")
+
+# Performance Issues
+
+The SVG.JS ```.font().move()``` call when creating hex coordinate labels is very slow.
+
+* https://github.com/svgdotjs/svg.js/issues/1240
+
+Changing
+
+```.font().move()```
+
+ to 
+
+```.font().attr("transform", "translate(<x>, <y>))```
+
+ gained some speed, but is still slow. For now labels turned off. Custom drawing numbers with paths may be faster than using font().
+
+## Profiling with hex coordinate labels drawn
+![screenshot](./Images/update09-profile-with-text.png "profile with text")
+
+## Profiling with hex coordinate labels disabled
+![screenshot](./Images/update09-profile-without-text.png "profile without text")
+
 
 
 # Update History
+
+## [9] Performance Testing
+* Created larger map with 25 red 25 blue units
+* Created a number of City (Gold) hexes
+* Roads are drawn between the cities
+* Click button and all units pathfind to a random hex
+* Issue with SVG.JS .font().move() performance, hex coordinates causing slowdown, to be resolved
+
 
 ## [8] Sides, stacks, and moving multiple units
 * Created order of battle and utility functions

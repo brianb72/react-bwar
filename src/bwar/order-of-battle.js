@@ -241,7 +241,8 @@ export class OrderOfBattle {
    * @returns {Array.<number>} Array of UnitIds
    */
   getAllUnitIds() {
-    return arrayStringToInt(Object.keys(this.oob.units));
+    const unitIds = arrayStringToInt(Object.keys(this.oob.units));
+    return unitIds;
   }
 
   /**

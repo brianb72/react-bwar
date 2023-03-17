@@ -29,6 +29,7 @@ export class BWARView {
 
     // Holds information about hex, pixel, and map geometry
     this.geometry = {
+      shouldDrawCoordinates: false,
       mapHexWidth: mapHexWidth,
       mapHexHeight: mapHexHeight,
       mapPixelWidth: HEXPIXELRADIUS * 2 * mapHexWidth * 1.1,
@@ -54,7 +55,7 @@ export class BWARView {
     // Holds information about the current state of the view
     this.state = {
       selectedHexCoord: undefined, // One hex can be selected and will draw with a thicker border
-      isUnitMoving: false, // True if a unit is running an animation to move between hexes, block click actions if an animation is running
+      numOfUnitsMoving: 0, // Number of units with running animation timelines
     };
 
     // Holds the main svgContainer and all child groups
@@ -96,8 +97,8 @@ export class BWARView {
     this.svgGroups.svgContainer = SVG()
       .size(g.mapPixelWidth, g.mapPixelHeight)
       .viewbox(`0 0 ${g.mapPixelWidth} ${g.mapPixelHeight}`)
-      .panZoom({ zoomMin: 0.25, zoomMax: 10, zoomFactor: 0.15 })
-      .zoom(0.8, { x: g.mapPixelWidth * 1.5, y: g.mapPixelHeight * 1.2 })
+      .panZoom({ zoomMin: 1, zoomMax: 20, zoomFactor: 0.1 })
+      .zoom(1.2, { x: -g.mapPixelWidth / 2, y: -g.mapPixelHeight / 2 + 900})
       .attr("id", "container");
 
     let clicks = 0;
@@ -114,12 +115,6 @@ export class BWARView {
           const { x, y } = this.svgGroups.svgContainer.point(e.pageX, e.pageY);
           const hexCoord = this.pixelToHex(Coordinates.makeCart(x, y));
           this.lastHexClicked = hexCoord;
-          if (hexCoord && this.setLastHexClicked) {
-            const hex = this.model.getHex(hexCoord);
-            this.setLastHexClicked(
-              `${hexCoord.x}, ${hexCoord.y}, ${TerrainData[hex.terrainId].name}`
-            );
-          }
           this.controller.view_hex_click(hexCoord);
         }, dblClickTimeSpan);
       }
@@ -152,7 +147,7 @@ export class BWARView {
   drawInitialView() {
     const g = this.geometry;
     const gr = this.svgGroups;
-
+    
     // Create the groups that will hold each layer
     this.svgGroups.svgContainer.clear();
     gr.hexesBase = gr.svgContainer.group().attr("id", "hexsBase");
@@ -181,21 +176,42 @@ export class BWARView {
           .stroke({ width: 1, color: "Black" })
           .move(hexPixelCenter.x, hexPixelCenter.y);
 
+        // TODO Drawing text is very, very slow. The font() and move() calls use enormous time in the profiler.
+        //      Figure out why and find out how to draw text faster.
+        //      https://github.com/svgdotjs/svg.js/issues/1240
+        // Directly setting the .attr('transform') is faster than calling .translate() because you skip SVG.JS BBox() calls and a transform.
+        // Translating is more performant than moving?
+
         // Draw the coordinate label
-        gr.hexesCoords
-          .text(`${hexX},${hexY}`)
-          .font({
-            family: "Verdana",
-            size: 15,
-            fill: "Black",
-            weight: "bold",
-            leading: 1.4,
-            anchor: "middle",
-          })
-          .move(
-            hexPixelCenter.x + (g.hexPixelWidth / 2) * 0.85,
-            hexPixelCenter.y
-          );
+        if (g.shouldDrawCoordinates) {
+          gr.hexesCoords
+            .text(`${hexX},${hexY}`)
+            .font({
+              family: "Verdana",
+              size: 15,
+              fill: "Black",
+              weight: "bold",
+              leading: 1.4,
+              anchor: "middle",
+            })
+
+            // Small improvement in panning and zooming, no improvement in creation
+            .attr("text-rendering", "optimizeSpeed")
+
+            // 7.5 seconds for 100x100 map
+            .attr(
+              "transform",
+              `translate(${hexPixelCenter.x + (g.hexPixelWidth / 2) * 0.90}, ${
+                hexPixelCenter.y + (g.hexPixelHeight / 2) * 0.25
+              })`
+            );
+
+          // 11 seconds for 100x100 map
+          // .translate(
+          //   hexPixelCenter.x + (g.hexPixelWidth / 2) * 0.85,
+          //   hexPixelCenter.y
+          // );
+        }
       }
     }
   }
@@ -213,10 +229,16 @@ export class BWARView {
       // testing
       console.log(`BWARView.createUnitCountersForAllUnits(): !unitIds`);
     }
-    console.log(`Creating ${unitIds.length} unit counters.`);
+    const start_time = performance.now();
     for (const unitId of unitIds) {
       this.createUnitCounter(unitId);
     }
+    const end_time = performance.now();
+    console.log(
+      `   ...Created ${unitIds.length} unit counters in ${
+        end_time - start_time
+      }`
+    );
   }
 
   /**
@@ -228,20 +250,26 @@ export class BWARView {
     const unit = this.model.oob.getUnit(unitId);
     if (!unit || !Number.isInteger(unit?.unitId)) {
       throw new Error(
-        `BWARView.createUnitCounter(): Invalid unit [${JSON.stringify(unitId)}] [${JSON.stringify(unit)}]`
+        `BWARView.createUnitCounter(): Invalid unit [${JSON.stringify(
+          unitId
+        )}] [${JSON.stringify(unit)}]`
       );
     }
 
     if (!this.isHexOnMap(unit.hexCoord)) {
       throw new Error(
-        `BWARCreateView.createUnitCounter(): Unit not on map or invalid coord [${JSON.stringify(unit?.hexCoord)}]`
+        `BWARCreateView.createUnitCounter(): Unit not on map or invalid coord [${JSON.stringify(
+          unit?.hexCoord
+        )}]`
       );
     }
 
     // Get a ref to the svgLayers base and create it
     if (unit.svgLayers.base !== undefined) {
       throw new Error(
-        `BWARView.createUnitCounter(): SVG base layer already exists for ${JSON.stringify(unitId)}`
+        `BWARView.createUnitCounter(): SVG base layer already exists for ${JSON.stringify(
+          unitId
+        )}`
       );
     }
 
@@ -249,7 +277,9 @@ export class BWARView {
     const pixelTargetHex = this.hexToPixel(unit?.hexCoord);
     if (pixelTargetHex === undefined) {
       throw new Error(
-        `BWARView.createUnitCounter(): Unit target hex cannot be found [${JSON.stringify(unit?.hexCoord)}] [${JSON.stringify(pixelTargetHex)}]`
+        `BWARView.createUnitCounter(): Unit target hex cannot be found [${JSON.stringify(
+          unit?.hexCoord
+        )}] [${JSON.stringify(pixelTargetHex)}]`
       );
     }
 
@@ -277,10 +307,12 @@ export class BWARView {
    */
   moveUnitIdToHexCoord(unitId, targetHexCoord) {
     // Get the unit and source hex coordinates
-    const unit = this.model.getUnit(unitId);
+    const unit = this.model.oob.getUnit(unitId);
     if (unit === undefined) {
       throw new Error(
-        `BWARView.moveUnitIdToHexCoord(): UnitId cannot be found [${JSON.stringify(unitId)}]]`
+        `BWARView.moveUnitIdToHexCoord(): UnitId cannot be found [${JSON.stringify(
+          unitId
+        )}]]`
       );
     }
 
@@ -288,7 +320,9 @@ export class BWARView {
     const pixelCoord = this.hexToPixel(targetHexCoord);
     if (pixelCoord === undefined) {
       throw new Error(
-        `BWARView.moveUnitIdToHexCoord(): targetHexCoord not on map [${JSON.stringify(targetHexCoord)}]]`
+        `BWARView.moveUnitIdToHexCoord(): targetHexCoord not on map [${JSON.stringify(
+          targetHexCoord
+        )}]]`
       );
     }
 
@@ -322,7 +356,9 @@ export class BWARView {
       return this.isHexOnMap(hexCoord) ? hexCoord : undefined;
     } catch {
       throw new Error(
-        `BWARView.pixelToHex(): pixelCoord is invalid [${JSON.stringify(pixelCoord)}]]`
+        `BWARView.pixelToHex(): pixelCoord is invalid [${JSON.stringify(
+          pixelCoord
+        )}]]`
       );
     }
   }
@@ -342,7 +378,9 @@ export class BWARView {
     } catch {
       // Catch and rethrow so our message comes from hexToPixel instead of isHexOnMap
       throw new Error(
-        `BWARView.hexToPixel(): hexCoord is invalid [${JSON.stringify(hexCoord)}]]`
+        `BWARView.hexToPixel(): hexCoord is invalid [${JSON.stringify(
+          hexCoord
+        )}]]`
       );
     }
 
@@ -355,7 +393,9 @@ export class BWARView {
     } catch {
       // Should never happen?
       throw new Error(
-        `BWARView.hexToPixel(): error converting to cube [${JSON.stringify(hexCoord)}]]`
+        `BWARView.hexToPixel(): error converting to cube [${JSON.stringify(
+          hexCoord
+        )}]]`
       );
     }
   }
@@ -372,7 +412,9 @@ export class BWARView {
       return x >= 0 && x < this.mapHexWidth && y >= 0 && y < this.mapHexHeight;
     } catch {
       throw new Error(
-        `BWARView.isHexOnMap(): hexCoord is invalid [${JSON.stringify(hexCoord)}]]`
+        `BWARView.isHexOnMap(): hexCoord is invalid [${JSON.stringify(
+          hexCoord
+        )}]]`
       );
     }
   }
@@ -390,7 +432,9 @@ export class BWARView {
       const lastHex = this.model.getHex(vs.selectedHexCoord);
       if (lastHex === undefined) {
         throw new Error(
-          `BWARView.setSelectedHex(): Could not get previously selected hex [${JSON.stringify(vs.selectedHexCoord)}]]`
+          `BWARView.setSelectedHex(): Could not get previously selected hex [${JSON.stringify(
+            vs.selectedHexCoord
+          )}]]`
         );
       }
       lastHex.hexSvg.attr("stroke-width", 1).back();
@@ -406,7 +450,9 @@ export class BWARView {
     const newHex = this.model.getHex(hexCoord);
     if (newHex === undefined) {
       throw new Error(
-        `BWARView.setSelectedHex(): Could not get new selected hex [${JSON.stringify(hexCoord)}]]`
+        `BWARView.setSelectedHex(): Could not get new selected hex [${JSON.stringify(
+          hexCoord
+        )}]]`
       );
     }
     newHex.hexSvg.attr("stroke-width", g.selectedHexStrokeWidth).back();
@@ -444,7 +490,9 @@ export class BWARView {
     const unit = this.model.oob.getUnit(unitId);
     if (unit === undefined) {
       throw new Error(
-        `BWARView.animationMoveUnitOnPath(): unitId not found [${JSON.stringify(unitId)}]`
+        `BWARView.animationMoveUnitOnPath(): unitId not found [${JSON.stringify(
+          unitId
+        )}]`
       );
     }
 
@@ -452,7 +500,9 @@ export class BWARView {
     const unitSvg = unit.svgLayers.base;
     if (unitSvg === undefined) {
       throw new Error(
-        `BWARView.animationMoveUnitOnPath(): unit has no SVG [${JSON.stringify(unit)}]`
+        `BWARView.animationMoveUnitOnPath(): unit has no SVG [${JSON.stringify(
+          unit
+        )}]`
       );
     }
 
@@ -474,7 +524,9 @@ export class BWARView {
       const pixelOrigin = this.hexToPixel(movePath[step]);
       if (pixelOrigin === undefined) {
         throw new Error(
-          `BWARView.animationMoveUnitOnPath(): movePath has invalid or offmap step [${JSON.stringify(movePath[step])}]`
+          `BWARView.animationMoveUnitOnPath(): movePath has invalid or offmap step [${JSON.stringify(
+            movePath[step]
+          )}]`
         );
       }
 
@@ -490,15 +542,20 @@ export class BWARView {
         .move(pixelCentered.x, pixelCentered.y);
     }
 
+    this.state.numOfUnitsMoving += 1;
+
     // .after() runs after the animation timeline finishes
     if (updateSelectedHex) {
-      unitSvg.animate({ duration: 15, delay: 15, wait: 0, }).after(() => {
-        this.state.isUnitMoving = false;
-        this.setSelectedHex(movePath[movePath.length-1]);
+      unitSvg.animate({ duration: 15, delay: 15, wait: 0 }).after(() => {
+        this.setSelectedHex(movePath[movePath.length - 1]);
+        this.state.numOfUnitsMoving -= 1;
+        this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving); 
+
       });
     } else {
-      unitSvg.animate({ duration: 15, delay: 15, wait: 0, }).after(() => {
-        this.state.isUnitMoving = false;
+      unitSvg.animate({ duration: 15, delay: 15, wait: 0 }).after(() => {
+        this.state.numOfUnitsMoving -= 1;
+        this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving); 
       });
     }
   }

@@ -24,6 +24,7 @@ yarn-error.log*
 
 # directories
 /0Notes
+/profile
 
 # Local Netlify folder
 .netlify

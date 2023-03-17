@@ -127,11 +127,6 @@ export class BWARModel {
     unit.hexCoord = targetHexCoord;
     sourceHex.unitStack.removeUnitId(unitId);
     targetHex.unitStack.addUnitId(unitId);
-
-    // DEBUG output message
-    console.log(
-      `Unit ${unitId} moved from ${sourceHex.hexCoord.x}, ${sourceHex.hexCoord.y} to ${targetHex.hexCoord.x}, ${targetHex.hexCoord.y}`
-    );
   }
 
   /**
