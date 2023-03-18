@@ -1,9 +1,12 @@
 import { SVG } from "@svgdotjs/svg.js";
 import { Coordinates } from "./coordinates";
-import { TerrainData } from "./models";
+import { TerrainData, SvgLayers } from "./models";
+import { SymbolDraw } from "./symbol-draw";
 import "./shared-types.js";
 
 const HEXPIXELRADIUS = 57; // Sets size of hexes in pixels
+const PIXELCOUNTERWIDTH = 64;
+const PIXELCOUNTERHEIGHT = 56;
 
 export class BWARView {
   /**
@@ -16,7 +19,9 @@ export class BWARView {
    */
   constructor(controller, model, mapHexWidth, mapHexHeight, setLastHexClicked) {
     console.log(
-      `   ...BWARView Constructor mapSize: ${mapHexWidth} x ${mapHexHeight}`
+      `   ...BWARView Constructor mapSize: ${mapHexWidth} x ${mapHexHeight} [${
+        mapHexWidth * mapHexHeight
+      }]`
     );
     this.controller = controller;
     this.model = model;
@@ -29,7 +34,6 @@ export class BWARView {
 
     // Holds information about hex, pixel, and map geometry
     this.geometry = {
-      shouldDrawCoordinates: false,
       mapHexWidth: mapHexWidth,
       mapHexHeight: mapHexHeight,
       mapPixelWidth: HEXPIXELRADIUS * 2 * mapHexWidth * 1.1,
@@ -45,15 +49,24 @@ export class BWARView {
         [hexPixelWidth * 0.75, 0],
       ],
       unitCounters: {
-        pixelWidth: 64,
-        pixelHeight: 56,
+        pixelCounterWidth: 64,
+        pixelCounterHeight: 56,
+        pixelSymbolWidth: PIXELCOUNTERWIDTH * 0.62,
+        pixelSymbolHeight: PIXELCOUNTERHEIGHT * 0.45,
         rounding: 6,
+        percentTopSide: 0.11, // Sets the position of the values boxes
+        percentBottomSide: 0.75,
+        percentLeftSide: 0.17,
+        percentRightSide: 0.83,
+        percentStatusBox: 0.13,
+        roundingStatusBox: 2,
       },
       selectedHexStrokeWidth: 15,
     };
 
     // Holds information about the current state of the view
     this.state = {
+      shouldDisplayHexCoordinates: true, // Should the hex coordinates be shown on the view?
       selectedHexCoord: undefined, // One hex can be selected and will draw with a thicker border
       numOfUnitsMoving: 0, // Number of units with running animation timelines
     };
@@ -72,7 +85,9 @@ export class BWARView {
     this.drawInitialView();
     const finishCreate = performance.now();
     console.log(
-      `   ...BWARView created map in ${finishCreate - startCreate}ms`
+      `   ...-BWARView Full map creation complete in ${Math.round(
+        finishCreate - startCreate
+      )}ms-`
     );
   }
 
@@ -98,7 +113,7 @@ export class BWARView {
       .size(g.mapPixelWidth, g.mapPixelHeight)
       .viewbox(`0 0 ${g.mapPixelWidth} ${g.mapPixelHeight}`)
       .panZoom({ zoomMin: 1, zoomMax: 20, zoomFactor: 0.1 })
-      .zoom(1.2, { x: -g.mapPixelWidth / 2, y: -g.mapPixelHeight / 2 + 900})
+      .zoom(1.2, { x: -g.mapPixelWidth / 2, y: -g.mapPixelHeight / 2 })
       .attr("id", "container");
 
     let clicks = 0;
@@ -111,7 +126,7 @@ export class BWARView {
       if (clicks === 1) {
         clickTimer = setTimeout(() => {
           clicks = 0;
-          // handle single click, now we are sure it is not a bouble click
+          // handle single click, now we are sure it is not a double click
           const { x, y } = this.svgGroups.svgContainer.point(e.pageX, e.pageY);
           const hexCoord = this.pixelToHex(Coordinates.makeCart(x, y));
           this.lastHexClicked = hexCoord;
@@ -131,12 +146,6 @@ export class BWARView {
       const { x, y } = this.svgGroups.svgContainer.point(e.pageX, e.pageY);
       const hexCoord = this.pixelToHex(Coordinates.makeCart(x, y));
       this.lastHexClicked = hexCoord;
-      if (hexCoord && this.setLastHexClicked) {
-        const hex = this.model.getHex(hexCoord);
-        this.setLastHexClicked(
-          `${hexCoord.x}, ${hexCoord.y}, ${TerrainData[hex.terrainId].name}`
-        );
-      }
       this.controller.view_hex_dblclick(hexCoord);
     });
   }
@@ -147,7 +156,10 @@ export class BWARView {
   drawInitialView() {
     const g = this.geometry;
     const gr = this.svgGroups;
-    
+    const vs = this.state;
+
+    const startTime = performance.now();
+
     // Create the groups that will hold each layer
     this.svgGroups.svgContainer.clear();
     gr.hexesBase = gr.svgContainer.group().attr("id", "hexsBase");
@@ -175,44 +187,94 @@ export class BWARView {
           .fill(fillColor)
           .stroke({ width: 1, color: "Black" })
           .move(hexPixelCenter.x, hexPixelCenter.y);
-
-        // TODO Drawing text is very, very slow. The font() and move() calls use enormous time in the profiler.
-        //      Figure out why and find out how to draw text faster.
-        //      https://github.com/svgdotjs/svg.js/issues/1240
-        // Directly setting the .attr('transform') is faster than calling .translate() because you skip SVG.JS BBox() calls and a transform.
-        // Translating is more performant than moving?
-
-        // Draw the coordinate label
-        if (g.shouldDrawCoordinates) {
-          gr.hexesCoords
-            .text(`${hexX},${hexY}`)
-            .font({
-              family: "Verdana",
-              size: 15,
-              fill: "Black",
-              weight: "bold",
-              leading: 1.4,
-              anchor: "middle",
-            })
-
-            // Small improvement in panning and zooming, no improvement in creation
-            .attr("text-rendering", "optimizeSpeed")
-
-            // 7.5 seconds for 100x100 map
-            .attr(
-              "transform",
-              `translate(${hexPixelCenter.x + (g.hexPixelWidth / 2) * 0.90}, ${
-                hexPixelCenter.y + (g.hexPixelHeight / 2) * 0.25
-              })`
-            );
-
-          // 11 seconds for 100x100 map
-          // .translate(
-          //   hexPixelCenter.x + (g.hexPixelWidth / 2) * 0.85,
-          //   hexPixelCenter.y
-          // );
-        }
       }
+    }
+
+    const endTime = performance.now();
+    console.log(
+      `   ...BWARView created hexes in ${Math.round(endTime - startTime)}ms`
+    );
+
+    // Creating hex coordinate labels and having them visible is expensive. If coordinates
+    // are not to be shown, do not create them and hide the hexes coordinate SVG layer.
+    // If it is to be shown, create the coordinate labels.
+    // The layer can be created at a later time if needed.
+    if (vs.shouldDisplayHexCoordinates) {
+      this.drawHexCoordinateLabels();
+    } else {
+      gr.hexesCoords.hide();
+    }
+  }
+
+  /**
+   * Draw the hex coordinate SVG layer
+   * @returns
+   */
+  drawHexCoordinateLabels() {
+    const g = this.geometry;
+    const gr = this.svgGroups;
+
+    // Check if the labels have already been created, silently ignore if they have
+    if (gr.hexesCoords.first() === undefined) {
+      console.log("skipping");
+      return;
+    }
+
+    const startTime = performance.now();
+
+    // Walk the map and create each hex
+    for (let hexX = 0; hexX < g.mapHexWidth; ++hexX) {
+      for (let hexY = 0; hexY < g.mapHexHeight; ++hexY) {
+        const hexCoord = Coordinates.makeCart(hexX, hexY);
+        // Calculate where it is
+        const hexPixelOrigin = this.hexToPixel(hexCoord);
+        const hexPixelCenter = Coordinates.makeCart(
+          hexPixelOrigin.x - g.hexPixelWidth / 2,
+          hexPixelOrigin.y - g.hexPixelHeight / 2
+        );
+
+        gr.hexesCoords
+          .plain(`${hexX},${hexY}`)
+          .font({
+            family: "Verdana",
+            size: 15,
+            fill: "Black",
+            weight: "bold",
+            leading: 1.4,
+            anchor: "middle",
+          })
+          .attr("text-rendering", "optimizeSpeed")
+          .amove(
+            hexPixelCenter.x + g.hexPixelWidth / 2,
+            hexPixelCenter.y + g.hexPixelHeight * 0.12
+          );
+      }
+    }
+    const endTime = performance.now();
+    console.log(
+      `   ...BWARView created labels in ${Math.round(endTime - startTime)}ms`
+    );
+  }
+
+  /* ************************************************************************
+        Utility Functions
+   ************************************************************************ */
+
+  toggleShowCoordinates() {
+    const gr = this.svgGroups;
+    const vs = this.state;
+
+    if (vs.shouldDisplayHexCoordinates) {
+      gr.hexesCoords.hide();
+      vs.shouldDisplayHexCoordinates = false;
+      console.log("   ...BWARView hiding coordinates.");
+    } else {
+      console.log("   ...BWARView showing coordinates.");
+      if (gr.hexesCoords.first() === null) {
+        this.drawHexCoordinateLabels();
+      }
+      gr.hexesCoords.show();
+      vs.shouldDisplayHexCoordinates = true;
     }
   }
 
@@ -235,9 +297,9 @@ export class BWARView {
     }
     const end_time = performance.now();
     console.log(
-      `   ...Created ${unitIds.length} unit counters in ${
+      `   ...Created ${unitIds.length} unit counters in ${Math.round(
         end_time - start_time
-      }`
+      )}ms`
     );
   }
 
@@ -247,6 +309,8 @@ export class BWARView {
    * @throws {Error} unitId invalid, unit coord invalid or off map, SVG layer already exists, target hex not found
    */
   createUnitCounter(unitId) {
+    const gu = this.geometry.unitCounters;
+
     const unit = this.model.oob.getUnit(unitId);
     if (!unit || !Number.isInteger(unit?.unitId)) {
       throw new Error(
@@ -284,19 +348,149 @@ export class BWARView {
     }
 
     // Create a new SVG group to hold the unit counter
-    unit.svgLayers.base = this.svgGroups.unitsBase.group().attr("id", unitId);
+    const unitSvg = this.svgGroups.unitsBase
+      .group()
+      .attr("id", "unit: " + unitId);
+    unit.svgLayers.base = unitSvg;
+    const unitColors = unit.unitColors;
 
     // Draw the unit counter onto the SVG group
-    const gu = this.geometry.unitCounters;
     unit.svgLayers.base
-      .rect(gu.pixelWidth, gu.pixelHeight)
+      .rect(gu.pixelCounterWidth, gu.pixelCounterHeight)
       .radius(gu.rounding)
       .stroke({ color: unit.unitColors.counterForeground, width: 1 })
-      .fill(unit.unitColors.counterBackground)
+      .fill(unit.unitColors.counterBackground);
+
+    // Create a new SVG group to hold the unit symbol
+    const symbolSvg = unitSvg.group();
+    unit.svgLayers.symbol = symbolSvg;
+
+    // Draw rectangle for symbol area
+    symbolSvg
+      .rect(gu.pixelSymbolWidth, gu.pixelSymbolHeight)
+      .radius(gu.rounding)
+      .stroke({ color: unitColors.symbolForeground, width: 1 })
+      .fill(unitColors.symbolBackground);
+
+    // Draw the symbol to the symbol area
+    SymbolDraw.drawSymbol(
+      symbolSvg,
+      unit.symbolName,
+      unitColors.symbolForeground,
+      gu.pixelSymbolWidth,
+      gu.pixelSymbolHeight,
+      gu.rounding
+    );
+    symbolSvg.move(
+      gu.pixelCounterWidth / 2 - gu.pixelSymbolWidth / 2,
+      gu.pixelCounterHeight / 2 - gu.pixelSymbolHeight / 2
+    );
+
+    // Draw all of the unit.values to the counter
+    // == Value Areas ==
+    // status   Unitsize   mov
+    // AP         AT      DEF
+    const valuesSvg = unit.svgLayers.values;
+    const values = unit.values;
+    const percentCondition = unit.values.percentCondition;
+
+    const statusWidth = gu.pixelCounterWidth * gu.percentStatusBox;
+    const statusHeight = gu.pixelCounterHeight * gu.percentStatusBox;
+
+    let statusColor;
+    if (values.percentCondition > 0.8) {
+      statusColor = "Green";
+    } else if (values.percentCondition > 0.4) {
+      statusColor = "Orange";
+    } else {
+      statusColor = "Red";
+    }
+
+    valuesSvg.topLeft = unitSvg
+      .rect(statusWidth, statusHeight)
+      .radius(gu.roundingStatusBox)
+      .stroke({ width: 1, color: "Black" })
+      .fill(statusColor)
       .move(
-        pixelTargetHex.x - gu.pixelWidth / 2,
-        pixelTargetHex.y - gu.pixelHeight / 2
+        gu.pixelCounterWidth * gu.percentLeftSide - statusWidth / 2,
+        gu.pixelCounterWidth * gu.percentTopSide - statusHeight / 2
       );
+
+    valuesSvg.topCenter = unitSvg
+      .plain(values.unitSize || "-")
+      .font({ family: "Verdana", size: 12, fill: "Black", weight: "bold" })
+      .center(
+        gu.pixelCounterWidth * 0.5,
+        gu.pixelCounterWidth * gu.percentTopSide
+      );
+
+    valuesSvg.topRight = unitSvg
+      .plain(Math.round(values.moves * percentCondition) || "-")
+      .font({ family: "Verdana", size: 12, fill: "Black", weight: "bold" })
+      .center(
+        gu.pixelCounterWidth * gu.percentRightSide,
+        gu.pixelCounterWidth * gu.percentTopSide
+      );
+
+    valuesSvg.bottomLeft = unitSvg
+      .plain(Math.round(values.attackSoft * percentCondition) || "-")
+      .font({ family: "Verdana", size: 12, fill: "Black", weight: "bold" })
+      .center(
+        gu.pixelCounterWidth * gu.percentLeftSide,
+        gu.pixelCounterWidth * gu.percentBottomSide
+      );
+
+    valuesSvg.bottomCenter = unitSvg
+      .plain(Math.round(values.attackHard * percentCondition) || "-")
+      .font({ family: "Verdana", size: 12, fill: "Black", weight: "bold" })
+      .center(
+        gu.pixelCounterWidth * 0.5,
+        gu.pixelCounterWidth * gu.percentBottomSide
+      );
+
+    valuesSvg.bottomRight = unitSvg
+      .plain(Math.round(values.defend * percentCondition) || "-")
+      .font({ family: "Verdana", size: 12, fill: "Black", weight: "bold" })
+      .center(
+        gu.pixelCounterWidth * gu.percentRightSide,
+        gu.pixelCounterWidth * gu.percentBottomSide
+      );
+
+    // Moved the finished counter into position
+    unitSvg.move(
+      pixelTargetHex.x - gu.pixelCounterWidth / 2,
+      pixelTargetHex.y - gu.pixelCounterHeight / 2
+    );
+  }
+
+  /**
+   * Removes a unit's SVG group from the SVG.
+   * @param {UnitId} unitId Id of unit
+   * @throws {Error} unitId not found
+   */
+  removeUnitId(unitId) {
+    // Load unit
+    const unit = this.model.oob.getUnit(unitId);
+    if (unit === undefined) {
+      throw new Error(
+        `BWARView.removeUnitId(): UnitId cannot be found [${JSON.stringify(
+          unitId
+        )}]]`
+      );
+    }
+
+    // Remove the units SVG group from the SVG
+    unit.svgLayers.base.remove();
+    unit.svgLayers = new SvgLayers();
+  }
+
+  /**
+   * Updates the unit counter by deleting and remaking it
+   * @param {UnitId} unitId Id of unit
+   */
+  updateUnitIdCounter(unitId) {
+    this.removeUnitId(unitId);
+    this.createUnitCounter(unitId);
   }
 
   /**
@@ -329,8 +523,8 @@ export class BWARView {
     // TODO instad of this, just restack the hex
     // Move the unit on the view to the target hex
     unit.svgLayers.base.move(
-      pixelCoord.x - this.geometry.unitCounters.pixelWidth / 2,
-      pixelCoord.y - this.geometry.unitCounters.pixelHeight / 2
+      pixelCoord.x - this.geometry.unitCounters.pixelCounterWidth / 2,
+      pixelCoord.y - this.geometry.unitCounters.pixelCounterHeight / 2
     );
   }
 
@@ -479,7 +673,12 @@ export class BWARView {
    * @param {boolean} updateSelectedHex If true calls setSelectedHex() on the last step in movePath
    * @throw {Error} movePath must have 2 steps, unitId not found, unit has no SVG, step invalid or offmap
    */
-  animationMoveUnitOnPath(unitId, movePath, updateSelectedHex = false) {
+  animationMoveUnitOnPath(
+    unitId,
+    movePath,
+    updateSelectedHex = false,
+    shouldSignalMoveEnd = false
+  ) {
     if (!movePath || movePath.length < 2) {
       throw new Error(
         `BWARView.animationMoveUnitOnPath(): movePath must have at least 2 steps`
@@ -532,8 +731,8 @@ export class BWARView {
 
       // Calculate the point needed to center the unit counter in the hex
       const pixelCentered = Coordinates.makeCart(
-        pixelOrigin.x - g.unitCounters.pixelWidth * 0.5,
-        pixelOrigin.y - g.unitCounters.pixelHeight * 0.5
+        pixelOrigin.x - g.unitCounters.pixelCounterWidth * 0.5,
+        pixelOrigin.y - g.unitCounters.pixelCounterHeight * 0.5
       );
 
       // Add an animation step to the timeline that will walk the unit one step further along the path
@@ -549,13 +748,16 @@ export class BWARView {
       unitSvg.animate({ duration: 15, delay: 15, wait: 0 }).after(() => {
         this.setSelectedHex(movePath[movePath.length - 1]);
         this.state.numOfUnitsMoving -= 1;
-        this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving); 
-
+        if (shouldSignalMoveEnd) {
+          this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving);
+        }
       });
     } else {
       unitSvg.animate({ duration: 15, delay: 15, wait: 0 }).after(() => {
         this.state.numOfUnitsMoving -= 1;
-        this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving); 
+        if (shouldSignalMoveEnd) {
+          this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving);
+        }
       });
     }
   }

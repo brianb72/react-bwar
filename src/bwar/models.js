@@ -1,4 +1,5 @@
 import { UnitStack } from "./unit-stack";
+import "./shared-types.js";
 
 // For all Id:  0 is invalid, 1 is first valid
 
@@ -22,6 +23,19 @@ export const TerrainNames = {
   City: 6,
 };
 
+export function SvgLayers() {
+    this.base = undefined // Base group holding the entire counter
+    this.symbol = undefined // Symbol group holding a drawn symbol based on symbolName
+    this.values = {
+      topLeft: undefined,
+      topCenter: undefined,
+      topRight: undefined,
+      bottomLeft: undefined,
+      bottomCenter: undefined,
+      bottomRight: undefined
+  };
+}
+
 export function Unit(_unit) {
   this.unitId = _unit.unitId || 0;
   this.forceId = _unit.forceId || 0;
@@ -30,13 +44,10 @@ export function Unit(_unit) {
   this.hexCoord = { ..._unit.hexCoord };
   this.unitColors = new CounterColors(_unit.unitColors);
   this.symbolName = _unit.symbolName;
-  this.unitSize = _unit.unitSize;
   this.values = { ..._unit.values } || {};
 
-  this.svgLayers = {
-    base: undefined, // Base group holding the entire counter
-  };
-}
+  this.svgLayers = new SvgLayers();
+}  
 
 export function Hex(_hex) {
   this.hexCoord = _hex.hexCoord;
@@ -45,7 +56,6 @@ export function Hex(_hex) {
   this.hexSvg = undefined; // Handle to hex SVG object
   this.unitStack = new UnitStack();
 }
-
 
 export function CounterColors(_colors) {
   this.counterForeground = _colors.counterForeground;

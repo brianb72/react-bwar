@@ -2,6 +2,7 @@ import { BWARView } from "./view";
 import { BWARModel } from "./model";
 import { Coordinates } from "./coordinates";
 import { TerrainNames, TerrainData } from "./models";
+import { CombatEngine } from "./combat-engine";
 import "@svgdotjs/svg.panzoom.js";
 import "./shared-types.js";
 
@@ -15,31 +16,39 @@ export class BWARController {
    * @param {number} mapHexWidth Number of hexes wide
    * @param {number} mapHexHeight Number of hexes tall
    * @param {Function} setHeaderTextMessage React useState() setter
+   * @param {Function} setButtonDisabled React useState() setter
    */
-  constructor(mapHexWidth, mapHexHeight, setHeaderTextMessage) {
+  constructor(
+    mapHexWidth,
+    mapHexHeight,
+    setHeaderTextMessage,
+    setButtonDisabled
+  ) {
     console.log(
-      `   ...BWAR Constructor mapSize: ${mapHexWidth} x ${mapHexHeight}`
+      `   ...BWAR Constructor mapSize: ${mapHexWidth} x ${mapHexHeight} [${
+        mapHexWidth * mapHexHeight
+      }]`
     );
     this.view = undefined;
     this.mapHexWidth = mapHexWidth;
     this.mapHexHeight = mapHexHeight;
     this.mapSize = { height: mapHexHeight, width: mapHexWidth };
-    this.setLastHexClicked = setHeaderTextMessage;
+    this.setHeaderTextMessage = setHeaderTextMessage;
+    this.setButtonDisabled = setButtonDisabled;
     this.model = new BWARModel(mapHexWidth, mapHexHeight);
+    this.combatEngine = new CombatEngine(this.model);
 
     // Create a basic map
-    this.scenarioCitiesAndRoads();
-    
+    //this.scenarioCitiesAndRoads();
+    this.scenarioCombatTesting();
+
     // Create two sides and some units
-    this.oobRedVsBlue();
+    //this.oobRedVsBlue();
 
     console.log("=== Order of battle ===");
-    console.log(this.model.oob);
+    console.log(this.model.oob.oob);
     console.log("===                 ===");
   }
-
-
-
 
   /**
    * Do anything needed on view creation
@@ -61,7 +70,7 @@ export class BWARController {
         this.model,
         this.mapHexWidth,
         this.mapHexHeight,
-        this.setLastHexClicked
+        this.setHeaderTextMessage
       );
       this.setupView();
     }
@@ -70,7 +79,45 @@ export class BWARController {
   }
 
   /* ************************************************************************
-        View events
+        Controller events - Outside calling controller
+   ************************************************************************ */
+
+  /**
+   * Randomly walk all units on the map to another hex. Units will not end up on the same target hexes.
+   */
+  randomWalkAllUnits() {
+    const toHexes = new Set();
+    let targetCoord;
+    const unitIds = this.model.oob.getAllUnitIds();
+    for (const unitId of unitIds) {
+      while (true) {
+        targetCoord = Coordinates.makeCart(
+          getRandomInt(this.mapHexWidth),
+          getRandomInt(this.mapHexHeight)
+        );
+        const tKey = `${targetCoord.x},${targetCoord.y}`;
+        if (!toHexes.has(tKey)) {
+          toHexes.add(tKey);
+          break;
+        }
+      }
+      this.moveUnitIdToHexCoord(unitId, targetCoord, false, true, true);
+    }
+    this.setHeaderTextMessage(
+      `Moving units: ${this.view.state.numOfUnitsMoving}`
+    );
+    this.setButtonDisabled(true);
+  }
+
+  /**
+   * Toggles displaying coordinates on the view.
+   */
+  toggleShowCoordinates() {
+    this.view.toggleShowCoordinates();
+  }
+
+  /* ************************************************************************
+        View events - View calling controller
    ************************************************************************ */
 
   /**
@@ -78,7 +125,6 @@ export class BWARController {
    * @param {CartCoordinate} hexCoord Coordinates of a hex that was single clicked.
    */
   view_hex_click(hexCoord) {
-    console.log("click", hexCoord);
     this.view.setSelectedHex(hexCoord);
   }
 
@@ -90,8 +136,6 @@ export class BWARController {
    * @param {CartCoordinate} clickedHexCoord Coordinates of the hex that was double clicked.
    */
   view_hex_dblclick(clickedHexCoord) {
-    console.log("dblclick", clickedHexCoord);
-
     // Get the hex that was double clicked
     const clickedHex = this.model.getHex(clickedHexCoord);
     if (clickedHex === undefined) {
@@ -104,25 +148,125 @@ export class BWARController {
 
     // Get the selected hex, and if it exists the top unit id
     const selectedHexCoord = this.view.getSelectedHexCoord();
-    const selectedHex = this.model.getHex(selectedHexCoord);
-    const topUnitId = selectedHex
+    const selectedHex = selectedHexCoord
+      ? this.model.getHex(selectedHexCoord)
+      : undefined;
+    const selectedHexTopUnitId = selectedHex
       ? selectedHex.unitStack.getTopUnitId()
       : undefined;
 
-    // If there is topUnitId, pathfind it to the clicked hex.
-    // This also updates selected hex at the end of the animation, don't do it here.
-    if (topUnitId !== undefined) {
-      this.moveUnitIdToHexCoord(topUnitId, clickedHexCoord, true);
+    // If the selected hex has no units, the clicked hex becomes the new selected hex
+    if (selectedHexTopUnitId === undefined) {
+      this.view.setSelectedHex(clickedHexCoord);
       return;
     }
 
-    // The selected hex has no units, clicked hex becomes new selected hex.
-    this.view.setSelectedHex(clickedHexCoord);
+    // Find the top unit of the clicked hex
+    const clickedHexTopUnitId = clickedHex.unitStack.getTopUnitId();
+
+    // If there is no unit, move there
+    if (!clickedHexTopUnitId) {
+      this.moveUnitIdToHexCoord(selectedHexTopUnitId, clickedHexCoord, true);
+      return;
+    }
+
+    // If the clicked hex unit is our side, do nothing
+    if (
+      this.model.oob.areUnitsOnSameSide(
+        selectedHexTopUnitId,
+        clickedHexTopUnitId
+      )
+    ) {
+      this.setHeaderTextMessage("Same side");
+      return;
+    }
+
+    // The clicked hex unit is not our side, start combat
+    const attackerHexCoord = selectedHexCoord;
+    const defenderHexCoord = clickedHexCoord;
+
+    // Combat hexes must be adjacent, otherwise abort
+    if (Coordinates.hexDistance(attackerHexCoord, defenderHexCoord) > 1) {
+      this.setHeaderTextMessage("Too far");
+      return;
+    }
+
+    const attackerUnitId = selectedHexTopUnitId;
+    const defenderUnitId = clickedHexTopUnitId;
+
+    const {
+      attResultCondition,
+      defResultCondition,
+    } = this.combatEngine.combatSingle(attackerUnitId, defenderUnitId);
+
+    // If the defender was destroyed remove it, otherwise update condition
+    if (defResultCondition > 0) {
+      this.model.oob.setUnitIdPercentCondition(
+        defenderUnitId,
+        defResultCondition
+      );
+      this.view.updateUnitIdCounter(defenderUnitId);
+    } else {
+      this.view.removeUnitId(defenderUnitId);
+      this.model.removeUnitId(defenderUnitId);
+    }
+
+    // If the attacker was destroyed remove it, otherwise update condition
+    if (attResultCondition > 0) {
+      this.model.oob.setUnitIdPercentCondition(
+        attackerUnitId,
+        attResultCondition
+      );
+      this.view.updateUnitIdCounter(attackerUnitId);
+      // If attacker survived, and the defender was destroyed, move the attacker to the defending hex
+      if (attResultCondition > 0 && defResultCondition <= 0) {
+        this.model.moveUnitIdToHexCoord(attackerUnitId, defenderHexCoord);
+        this.view.animationMoveUnitOnPath(
+          attackerUnitId,
+          [attackerHexCoord, defenderHexCoord],
+          true
+        );
+      }
+    } else {
+      this.view.removeUnitId(attackerUnitId);
+      this.model.removeUnitId(attackerUnitId);
+    }
+
+    // Update the header based on the result
+    if (defResultCondition > 0 && attResultCondition > 0) {
+      this.setHeaderTextMessage("Defender Held");
+    } else if (defResultCondition <= 0 && attResultCondition > 0) {
+      this.setHeaderTextMessage("Attacker Won");
+    } else if (defResultCondition > 0 && attResultCondition <= 0) {
+      this.setHeaderTextMessage("Defender Won");
+    } else {
+      this.setHeaderTextMessage("Both Destroyed");
+    }
   }
 
+  /**
+   * Reports how many units on the view are currently running animations
+   * @returns {number} How many units are currently running animations
+   */
+  getNumberOfUnitsAnimating() {
+    if (this.view) {
+      return this.view.state.numOfUnitsMoving;
+    } else {
+      return 0;
+    }
+  }
 
+  /**
+   * Called by the view every time an animation ends with reporting enabled. Update the header and button.
+   * @param {numbers} numOfUnitsMoving How many units are currently running animations
+   */
   viewUnitAnimationEnded(numOfUnitsMoving) {
-    this.setLastHexClicked(numOfUnitsMoving);
+    if (numOfUnitsMoving) {
+      this.setHeaderTextMessage(`Moving units: ${numOfUnitsMoving}`);
+    } else {
+      this.setHeaderTextMessage("None");
+      this.setButtonDisabled(false);
+    }
   }
 
   /* ************************************************************************
@@ -137,7 +281,13 @@ export class BWARController {
    * @param {boolean} shouldAnimateMove Should the move be animated
    * @returns {boolean} True if a path was found and the unit moved, false if the unit did not move for any reason
    */
-  moveUnitIdToHexCoord(unitId, targetHexCoord, shouldUpdateSelectedHex = true, shouldAnimateMove = true) {
+  moveUnitIdToHexCoord(
+    unitId,
+    targetHexCoord,
+    shouldUpdateSelectedHex = true,
+    shouldAnimateMove = true,
+    shouldSignalMoveEnd = true
+  ) {
     const unit = this.model.oob.getUnit(unitId);
     if (!unit) {
       throw new Error(
@@ -165,7 +315,13 @@ export class BWARController {
     // If there is a view, move the unit on the view
     if (this.view) {
       if (shouldAnimateMove) {
-        this.view.animationMoveUnitOnPath(unitId, pathFindingHexCoords, shouldUpdateSelectedHex);
+        this.view.animationMoveUnitOnPath(
+          unitId,
+          pathFindingHexCoords,
+          shouldUpdateSelectedHex,
+          shouldSignalMoveEnd
+        );
+        this.setButtonDisabled(true);
       } else {
         this.view.moveUnitIdToHexCoord(unitId, targetHexCoord);
       }
@@ -193,7 +349,6 @@ export class BWARController {
     hex.moveCost = TerrainData[terrainId].moveCost;
   }
 
-
   /**
    * Draws a straight line between two hexes using a TerrainId as hex type
    * @param {CartCoordinate} sourceHexCoord Starting hex
@@ -201,88 +356,35 @@ export class BWARController {
    * @param {TerrainId} terrainId Draw line using TerrainId
    */
   lineBetweenHexes(sourceHexCoord, targetHexCoord, terrainId) {
-    for (const lineHex of Coordinates.lineBetweenTwoHexes(sourceHexCoord, targetHexCoord)) {
+    for (const lineHex of Coordinates.lineBetweenTwoHexes(
+      sourceHexCoord,
+      targetHexCoord
+    )) {
       this.setMapTerrainId(lineHex.x, lineHex.y, terrainId);
     }
   }
 
-  /**
-   * Randomly walk all units on the map to another hex. Units will not end up on the same target hexes.
-   */
-  randomWalkAllUnits() {
-    const toHexes = new Set();
-    let targetCoord;
-    for (const unitId of this.model.oob.getAllUnitIds()) {
-      while (true) {
-        targetCoord = Coordinates.makeCart(
-          getRandomInt(this.mapHexWidth),
-          getRandomInt(this.mapHexHeight)
-        );
-        const tKey = `${targetCoord.x},${targetCoord.y}`;
-        if (!toHexes.has(tKey)) {
-          toHexes.add(tKey);
-          break;
-        }
-      }
-      this.moveUnitIdToHexCoord(unitId, targetCoord, false);
-    }
-  }
-
-  /**
-   * Create a basic scenario with some cities and roads between them. There is a 50-50 chance
-   * the roads will be created with pathfinding vs straight line.
-   */
-  scenarioCitiesAndRoads() {
-    // Place random hills
-    for (let terrainCount = 0; terrainCount < 300; ++terrainCount) {
-      this.setMapTerrainId(
-        getRandomInt(this.mapHexWidth),
-        getRandomInt(this.mapHexHeight),
-        TerrainNames.Hill
-      );
-    }
-
-    // A list of cities
-    const cities = [ { x: 6, y: 4 }, { x: 24, y: 2 }, { x: 42, y: 8 }, { x: 57, y: 4 },
-      { x: 67, y: 3 }, { x: 67, y: 15 }, { x: 61, y: 25 }, { x: 38, y: 26 }, { x: 13, y: 25 },
-      { x: 3, y: 20 }, { x: 7, y: 14 }, { x: 6, y: 4 }    ]
-
-    // Walk through the cities
-    for (let i = 1; i < cities.length; ++i) {
-      let hexCoords;
-      if (getRandomInt(10) < 5) {
-        hexCoords = Coordinates.lineBetweenTwoHexes(cities[i-1], cities[i]);
-      } else {
-        hexCoords = this.model.pathfindBetweenHexes(cities[i-1], cities[i]);
-      }
-      // Draw the hexes on the path
-      for (const drawToHex of hexCoords) {
-        this.setMapTerrainId(drawToHex.x, drawToHex.y, TerrainNames.Road);
-      }
-      // Draw both cities
-      this.setMapTerrainId(cities[i-1].x, cities[i-1].y, TerrainNames.City);
-      this.setMapTerrainId(cities[i].x, cities[i].y, TerrainNames.City);
-    }
-
-  }
-
-  /**
-   * Setup sample Red vs Blue sides with units on the OOB
-   */
-  oobRedVsBlue() {
+  scenarioCombatTesting() {
+    // Colors
     const colorsRedForce = {
       counterForeground: "#000000",
       counterBackground: "#FF0000",
       symbolForeground: "#FFFFFF",
-      symbolBackground: "#000000",
+      symbolBackground: "#505050",
     };
     const colorsBlueForce = {
       counterForeground: "#000000",
-      counterBackground: "#00FF00",
-      symbolForeground: "#FFFFFF",
-      symbolBackground: "#000000",
+      counterBackground: "#1E90FF",
+      symbolForeground: "#000000",
+      symbolBackground: "#DCDCDC",
     };
 
+    // Create basic terrain
+    this.lineBetweenHexes({ x: 2, y: 1 }, { x: 6, y: 2 }, TerrainNames.Road);
+    this.setMapTerrainId(1, 2, TerrainNames.City);
+    this.setMapTerrainId(7, 2, TerrainNames.City);
+
+    // Create overall structure of both sides
     const oob = this.model.oob;
     const s_a = oob.createSide("Red Side");
     const s_a_force_1 = oob.createForce(s_a, "Red Force A-1");
@@ -298,39 +400,75 @@ export class BWARController {
       "Blue Formation B-1-1"
     );
 
-    for (let redCount = 0; redCount < 20; ++redCount) {
-      const s_a_hexCoord = Coordinates.makeCart(
-        getRandomInt(this.mapHexWidth),
-        getRandomInt(this.mapHexHeight)
-      );
+    // Unit vaules to use
+    const valuesInfantry = {
+      attackSoft: 5,
+      attackHard: 1,
+      defend: 5,
+      moves: 3,
+      unitSize: "III",
+      percentCondition: 1.0,
+      unitType: "Soft",
+    };
+    const valuesTank = {
+      attackSoft: 5,
+      attackHard: 5,
+      defend: 8,
+      moves: 8,
+      unitSize: "I",
+      percentCondition: 1.0,
+      unitType: "Hard",
+    };
+    const valuesMechInfantry = {
+      attackSoft: 6,
+      attackHard: 3,
+      defend: 5,
+      moves: 6,
+      unitSize: "II",
+      percentCondition: 1.0,
+      unitType: "Hard",
+    };
+
+    const createRedUnit = (x, y, symbolName, values) => {
+      const redHexCoord = Coordinates.makeCart(x, y);
       const s_a_unit_1 = oob.createUnit(
         s_a_force_1,
         s_a_formation_1,
         "Red Unit A-1-1-1",
-        s_a_hexCoord,
+        redHexCoord,
         colorsRedForce,
-        "Infantry",
+        symbolName,
         "III",
-        { attack: 5, defense: 5, moves: 5 }
+        values
       );
-      this.model.insertUnitIdToUnitStack(s_a_unit_1, s_a_hexCoord);
+      this.model.insertUnitIdToUnitStack(s_a_unit_1, redHexCoord);
+    };
 
-      const s_b_hexCoord = Coordinates.makeCart(
-        getRandomInt(this.mapHexWidth),
-        getRandomInt(this.mapHexHeight)
-      );
+    const createBlueUnit = (x, y, symbolName, values) => {
+      const blueHexCoord = Coordinates.makeCart(x, y);
       const s_b_unit_1 = oob.createUnit(
         s_b_force_1,
         s_b_formation_1,
         "Blue Unit B-1-1-1",
-        s_b_hexCoord,
+        blueHexCoord,
         colorsBlueForce,
-        "Infantry",
-        "XX",
-        { attack: 25, defense: 25, moves: 5 }
+        symbolName,
+        "III",
+        values
       );
-      this.model.insertUnitIdToUnitStack(s_b_unit_1, s_b_hexCoord);
-    }
+      this.model.insertUnitIdToUnitStack(s_b_unit_1, blueHexCoord);
+    };
+
+    createRedUnit(1, 2, "Mechanized Infantry", valuesMechInfantry);
+    createRedUnit(3, 2, "Infantry", valuesInfantry);
+    createRedUnit(2, 2, "Infantry", valuesInfantry);
+    createRedUnit(3, 1, "Infantry", valuesInfantry);
+    createRedUnit(2, 1, "Tank", valuesTank);
+
+    createBlueUnit(7, 2, "Mechanized Infantry", valuesMechInfantry);
+    createBlueUnit(4, 2, "Infantry", valuesInfantry);
+    createBlueUnit(3, 3, "Infantry", valuesInfantry);
+    createBlueUnit(4, 1, "Infantry", valuesInfantry);
+    createBlueUnit(5, 2, "Tank", valuesTank);
   }
-  
 }

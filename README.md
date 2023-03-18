@@ -12,33 +12,27 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Screenshot
 
-![screenshot](./Images/update09.png "update #9")
+![screenshot](./Images/update10.png "update #10")
 
 # Performance Issues
 
-The SVG.JS ```.font().move()``` call when creating hex coordinate labels is very slow.
+The SVG.JS ```.text().move()``` call when creating hex coordinate labels was very slow.
 
 * https://github.com/svgdotjs/svg.js/issues/1240
 
-Changing
+Changing the call to ```.plain().move()``` fixed the issue. Using ```.plain()``` skips a lot of expensive formatting / baseline / newline logic that ```.text()``` uses.
 
-```.font().move()```
-
- to 
-
-```.font().attr("transform", "translate(<x>, <y>))```
-
- gained some speed, but is still slow. For now labels turned off. Custom drawing numbers with paths may be faster than using font().
-
-## Profiling with hex coordinate labels drawn
-![screenshot](./Images/update09-profile-with-text.png "profile with text")
-
-## Profiling with hex coordinate labels disabled
-![screenshot](./Images/update09-profile-without-text.png "profile without text")
-
-
+Speed is now very good. Changing the ```.move()``` to ```.amove()``` or directly setting the transform with ```.attr()``` may improve more.
 
 # Update History
+
+## [10] Unit symbols and stats, basic combat
+* Unit symbols drawn on counter
+* Unit numeric stats shown and can be changed
+* Status indicator shows health of unit Green -> Orange -> Red
+* Click unit to select, double click empty hex to move
+* Double click an adjacent hex with an enemy to attack
+* No unit stacking this version
 
 ## [9] Performance Testing
 * Created larger map with 25 red 25 blue units

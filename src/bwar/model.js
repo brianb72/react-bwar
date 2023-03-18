@@ -1,6 +1,6 @@
 import { Hex, TerrainNames, TerrainData } from "./models.js";
 import { Coordinates } from "./coordinates";
-import { OrderOfBattle } from "./order-of-battle"
+import { OrderOfBattle } from "./order-of-battle";
 import TinyQueue from "tinyqueue";
 import "./shared-types.js";
 
@@ -45,7 +45,9 @@ export class BWARModel {
       return x >= 0 && x < this.mapHexWidth && y >= 0 && y < this.mapHexHeight;
     } catch {
       throw new Error(
-        `BWARModel.isHexOnMap(): hexCoord is invalid [${JSON.stringify(hexCoord)}]]`
+        `BWARModel.isHexOnMap(): hexCoord is invalid [${JSON.stringify(
+          hexCoord
+        )}]]`
       );
     }
   }
@@ -64,7 +66,9 @@ export class BWARModel {
       return this.hexMap[hexCoord.y][hexCoord.x];
     } catch {
       // Never?
-      throw new Error(`BWARModel.getHex(): hexCoord is invalid [${JSON.stringify(hexCoord)}]]`);
+      throw new Error(
+        `BWARModel.getHex(): hexCoord is invalid [${JSON.stringify(hexCoord)}]]`
+      );
     }
   }
 
@@ -77,19 +81,71 @@ export class BWARModel {
   insertUnitIdToUnitStack(unitId, targetHexCoord) {
     // Test the inputs
     if (!Number.isInteger(unitId)) {
-      throw new Error(`BWARModel.insertUnitIdToUnitStack(): Invalid unitId [${unitId}]`);
+      throw new Error(
+        `BWARModel.insertUnitIdToUnitStack(): Invalid unitId [${unitId}]`
+      );
     }
 
     // Look up the target hex, this will also test targetHexCoord
     const targetHex = this.getHex(targetHexCoord);
     if (!targetHex) {
       throw new Error(
-        `BWARModel.insertUnitIdToUnitStack(): targetHexCoord is not on map or invalid. [${JSON.stringify(targetHexCoord)}]`
+        `BWARModel.insertUnitIdToUnitStack(): targetHexCoord is not on map or invalid. [${JSON.stringify(
+          targetHexCoord
+        )}]`
       );
     }
 
     // Add the unitId to the stack
-    targetHex.unitStack.addUnitId(unitId);    
+    targetHex.unitStack.addUnitId(unitId);
+  }
+
+  /**
+   * Removes a unit to a hexes unitStack, no error if unit is not in stack
+   * @param {UnitId} unit UnitId to remove from the stack
+   * @param {CartCoordinate} targetHexCoord Coordinate of hex to add unit to
+   * @throws {Error} Invalid unit, Invalid hex
+   */
+  removeUnitIdFromUnitStack(unitId, targetHexCoord) {
+    // Test the inputs
+    if (!Number.isInteger(unitId)) {
+      throw new Error(
+        `BWARModel.insertUnitIdToUnitStack(): Invalid unitId [${unitId}]`
+      );
+    }
+
+    // Look up the target hex, this will also test targetHexCoord
+    const targetHex = this.getHex(targetHexCoord);
+    if (!targetHex) {
+      throw new Error(
+        `BWARModel.insertUnitIdToUnitStack(): targetHexCoord is not on map or invalid. [${JSON.stringify(
+          targetHexCoord
+        )}]`
+      );
+    }
+
+    // Add the unitId to the stack
+    targetHex.unitStack.removeUnitId(unitId);
+  }
+
+  /**
+   * Removes a unit from the OOB and the unitStack of the unit's hex
+   * @param {UnitId} unitId Id of unit
+   */
+  removeUnitId(unitId) {
+    // Load the unit
+    const unit = this.oob.getUnit(unitId);
+    if (unit === undefined) {
+      throw new Error(
+        `BWARModel.removeUnitId(): Can't load unit Id [${unitId}]`
+      );
+    }
+
+    // Remove the unit from it's hex unitStack
+    this.removeUnitIdFromUnitStack(unitId, unit.hexCoord);
+
+    // Remove the unit from the OOB
+    this.oob.removeUnitId(unitId);
   }
 
   /**
@@ -111,7 +167,9 @@ export class BWARModel {
     const sourceHex = this.getHex(unit.hexCoord);
     if (sourceHex === undefined) {
       throw new Error(
-        `BWARModel.moveUnitIdToHex(): Unit source hex found [${JSON.stringify(unitId.hexCoord)}]`
+        `BWARModel.moveUnitIdToHex(): Unit source hex found [${JSON.stringify(
+          unitId.hexCoord
+        )}]`
       );
     }
 
@@ -119,7 +177,9 @@ export class BWARModel {
     const targetHex = this.getHex(targetHexCoord);
     if (targetHex === undefined) {
       throw new Error(
-        `BWARModel.moveUnitIdToHex(): Unit target hex found [${JSON.stringify(targetHexCoord)}]`
+        `BWARModel.moveUnitIdToHex(): Unit target hex found [${JSON.stringify(
+          targetHexCoord
+        )}]`
       );
     }
 
@@ -140,14 +200,18 @@ export class BWARModel {
     // Source hex must be valid and be on map
     if (!this.isHexOnMap(sourceHexCoord)) {
       throw new Error(
-        `BWARModel.moveUnitIdToHex(): Source hex not on map [${JSON.stringify(sourceHexCoord)}]`
+        `BWARModel.moveUnitIdToHex(): Source hex not on map [${JSON.stringify(
+          sourceHexCoord
+        )}]`
       );
     }
 
     // Target hex must be valid and be on map
     if (!this.isHexOnMap(targetHexCoord)) {
       throw new Error(
-        `BWARModel.moveUnitIdToHex(): Target hex not on map [${JSON.stringify(targetHexCoord)}]`
+        `BWARModel.moveUnitIdToHex(): Target hex not on map [${JSON.stringify(
+          targetHexCoord
+        )}]`
       );
     }
 
@@ -211,7 +275,9 @@ export class BWARModel {
         let hexNei = this.getHex(neiCoord);
         if (hexNei === undefined) {
           throw new Error(
-            `BWARModel.pathfindBetweenHexes(): Could not get neighboring hex ${JSON.stringify(neiCoord)}`
+            `BWARModel.pathfindBetweenHexes(): Could not get neighboring hex ${JSON.stringify(
+              neiCoord
+            )}`
           );
         }
 

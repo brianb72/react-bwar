@@ -2,13 +2,14 @@ import { useEffect, useRef, useMemo, useState } from "react";
 import "./App.scss";
 import { BWARController } from "./bwar/controller";
 
-/* Demonstrate basic SVG.JS usage in React */
-
-
 function App() {
   const SVGWrapperRefElement = useRef(null);
   const [headerTextMessage, setHeaderTextMessage] = useState(undefined);
-  const memoBWAR = useMemo(() => new BWARController(72, 30, setHeaderTextMessage), []);
+  const [buttonDisabled, setButtonDisabled] = useState(false);
+  const memoBWAR = useMemo(
+    () => new BWARController(9, 5, setHeaderTextMessage, setButtonDisabled),
+    []
+  );
 
   // If the ref to the div changes, reattach BWAR
   useEffect(() => {
@@ -25,27 +26,31 @@ function App() {
     }
   }, [SVGWrapperRefElement, memoBWAR]);
 
-  const clickHandler = (e) => {
+  const clickMoveButton = (e) => {
     console.log("Random walking all units.");
     memoBWAR.randomWalkAllUnits();
+  };
+
+  const clickCoordsButton = (e) => {
+    memoBWAR.toggleShowCoordinates();
   };
 
   return (
     <div className="page-container">
       <div className="page-header">
         <span className="span-message">
-          Moving Units: {memoBWAR && headerTextMessage ? headerTextMessage : "None"}
-        </span>
-        <span>
-          <button onClick={clickHandler} disabled={headerTextMessage}>
-            Move
-          </button>
+          {memoBWAR && headerTextMessage ? headerTextMessage : "None"}
         </span>
       </div>
       <div className="page-content">
         <div ref={SVGWrapperRefElement} />
       </div>
-      <div className="page-footer">Footer</div>
+      <div className="page-footer">
+        <button onClick={clickCoordsButton}>Coords</button>
+        <button onClick={clickMoveButton} disabled={buttonDisabled}>
+          Move
+        </button>
+      </div>
     </div>
   );
 }

@@ -261,6 +261,76 @@ export class OrderOfBattle {
     return this.oob.units[unitId];
   }
 
+  /**
+   * Gets the SideId for UnitId
+   * @param {UnitId} unitId Id of unit
+   * @returns {number} SideId of Unit
+   * @throws {Error} unitId not a number, could not find unit's forceId in sides
+   */
+  getSideIdForUnitId(unitId) {
+    if (typeof unitId !== "number") {
+      throw new Error(
+        `OrderOfBattle.getSideIdForUnitId(): unitId is not a number [${JSON.stringify(
+          unitId
+        )}]`
+      );
+    }
+    if (!this.oob.units.hasOwnProperty(unitId)) {
+      throw new Error(
+        `OrderOfBattle.getSideIdForUnitId(): unitId does not exist ${JSON.stringify(
+          unitId
+        )}`
+      );
+    }
+    const forceId = this.oob.units[unitId].forceId;
+    for (const side of Object.values(this.oob.sides)) {
+      if (side.forces.has(forceId)) {
+        return side.sideId;
+      }
+    }
+    throw new Error(
+      `OrderOfBattle.getSideIdForUnitId(): unitId ${JSON.stringify(
+        unitId
+      )} forceId ${JSON.stringify(forceId)} side not found!`
+    );
+  }
+
+  /**
+   * Tests if two units are on the same side
+   * @param {UnitId} unitIdA Id of first unit
+   * @param {UnitId} unitIdB Id of second unit
+   * @returns {boolean} True if units are on same side
+   * @throws {Error} unitIdA or unitIdB not a number, units do not exist, error looking up side
+   */
+  areUnitsOnSameSide(unitIdA, unitIdB) {
+    if (typeof unitIdA !== "number") {
+      throw new Error(
+        `OrderOfBattle.areUnitsOnSameSide(): unitIdA is not a number [${JSON.stringify(
+          unitIdA
+        )}]`
+      );
+    }
+    if (typeof unitIdB !== "number") {
+      throw new Error(
+        `OrderOfBattle.areUnitsOnSameSide(): unitIdB is not a number [${JSON.stringify(
+          unitIdB
+        )}]`
+      );
+    }
+
+    try {
+      return (
+        this.getSideIdForUnitId(unitIdA) === this.getSideIdForUnitId(unitIdB)
+      );
+    } catch (e) {
+      throw new Error(
+        `OrderOfBattle.areUnitsOnSameSide(): Units [${JSON.stringify(
+          unitIdA
+        )}] and [${JSON.stringify(unitIdB)}] error looking up sides [${e}]`
+      );
+    }
+  }
+
   /* ************************************************************************
         Setting parent
    ************************************************************************ */
@@ -296,5 +366,103 @@ export class OrderOfBattle {
     // Add the force to the new side, and then set the forces new sideId
     this.oob.sides[sideId].forces.add(forceId);
     this.oob.forces[forceId].sideId = sideId;
+  }
+
+  /* ************************************************************************
+        Removing
+   ************************************************************************ */
+
+  /**
+   * Removes UnitId from FormationId
+   * @param {UnitId} unitId Id of unit
+   * @param {FormationId} formationId Id of formation
+   * @throws {Error} unitId or formationId not a number, formationId does not exist
+   */
+  removeUnitIdFromFormationId(unitId, formationId) {
+    if (typeof unitId !== "number") {
+      throw new Error(
+        `OrderOfBattle.removeUnitIdFromFormationId(): unitId is not a number [${JSON.stringify(
+          unitId
+        )}]`
+      );
+    }
+    if (typeof formationId !== "number") {
+      throw new Error(
+        `OrderOfBattle.removeUnitIdFromFormationId(): formationId is not a number [${JSON.stringify(
+          formationId
+        )}]`
+      );
+    }
+    if (!this.oob.formations.hasOwnProperty(formationId)) {
+      throw new Error(
+        `OrderOfBattle.removeUnitId(): formationId does not exist ${JSON.stringify(
+          formationId
+        )}`
+      );
+    }
+
+    this.oob.formations[formationId].units.delete(unitId);
+  }
+
+  /**
+   * Removes UnitId from the OOB, deleting the unit. Also removes unit from formation.
+   * @param {UnitId} unitId Id of unit
+   * @throws {Error} unitId not a number, unitId does not exist
+   */
+  removeUnitId(unitId) {
+    if (typeof unitId !== "number") {
+      throw new Error(
+        `OrderOfBattle.removeUnitId(): unitId is not a number [${JSON.stringify(
+          unitId
+        )}]`
+      );
+    }
+    if (!this.oob.units.hasOwnProperty(unitId)) {
+      throw new Error(
+        `OrderOfBattle.removeUnitId(): unitId does not exist ${JSON.stringify(
+          unitId
+        )}`
+      );
+    }
+
+    const unit = this.getUnit(unitId);
+    this.removeUnitIdFromFormationId(unitId, unit.formationId);
+    delete this.oob.units[unitId];
+  }
+
+  /* ************************************************************************
+        Updating
+   ************************************************************************ */
+
+  /**
+   * Sets the values.percentCondition of a Unit
+   * @param {UnitId} unitId Id of unit
+   * @param {number} percentCondition Value between 0.0 and 1.0, used to scale combat values
+   * @throws {Error} unitId not number, percentCondition not number, unitId does not exist
+   */
+  setUnitIdPercentCondition(unitId, percentCondition) {
+    if (typeof unitId !== "number") {
+      throw new Error(
+        `OrderOfBattle.setUnitIdPercentCondition(): unitId is not a number [${JSON.stringify(
+          unitId
+        )}]`
+      );
+    }
+    if (typeof percentCondition !== "number") {
+      throw new Error(
+        `OrderOfBattle.setUnitIdPercentCondition(): percentCondition is not a number [${JSON.stringify(
+          percentCondition
+        )}]`
+      );
+    }
+    if (!this.oob.units.hasOwnProperty(unitId)) {
+      throw new Error(
+        `OrderOfBattle.setUnitIdPercentCondition(): unitId does not exist ${JSON.stringify(
+          unitId
+        )}`
+      );
+    }
+
+    this.oob.units[unitId].values.percentCondition = percentCondition;
   }
 }
