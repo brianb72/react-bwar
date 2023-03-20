@@ -13,8 +13,7 @@
 
 */
 
-import { Unit } from "./models";
-import "./shared-types.js";
+import "../shared-types.js";
 
 const arrayStringToInt = (arr) => {
   for (let i = 0; i < arr.length; ++i) {
@@ -30,13 +29,6 @@ export class OrderOfBattle {
 
   reset() {
     this.oob = {
-      // Holds the highest value Id that was used in each group. If 0 no value was used yet.
-      idCounters: {
-        sides: 0,
-        forces: 0,
-        formations: 0,
-        units: 0,
-      },
       sides: {},
       forces: {},
       formations: {},
@@ -49,13 +41,21 @@ export class OrderOfBattle {
    ************************************************************************ */
 
   /**
-   * Creates a side with a name and return an assigned Id
+   * Creates a side with a name and return a the newly created SideModel
+   * @param {SideId} sideId Id of the side, must be unused
    * @param {string} sideName Name of side or empty string if no name
-   * @returns {SideId} Id of the new side
-   * @throws {Error} sideName not string
+   * @returns {SideModel} SideModel of created side
+   * @throws {Error} sideId not number, sideName not string sideId already exist
    */
-  createSide(sideName) {
+  createSide(sideId, sideName) {
     // Test inputs
+    if (typeof sideId !== "number") {
+      throw new Error(
+        `OrderOfBattle.createSide(): sideId is not a number [${JSON.stringify(
+          sideId
+        )}]`
+      );
+    }
     if (typeof sideName !== "string") {
       throw new Error(
         `OrderOfBattle.createSide(): sideName is not a string [${JSON.stringify(
@@ -63,32 +63,39 @@ export class OrderOfBattle {
         )}]`
       );
     }
+    if (this.oob.sides.hasOwnProperty(sideId)) {
+      throw new Error(
+        `OrderOfBattle.createSide(): sideId already exists [${JSON.stringify(
+          sideId
+        )}]`
+      );
+    }
 
-    // Create the new object and assign an Id
+    // Create the new SideModel
     const side = {
-      sideId: ++this.oob.idCounters.sides,
+      sideId: sideId,
       name: sideName,
       forces: new Set(),
     };
 
-    // Add the new object to the OOB and return the assigned Id
+    // Add the new object to the SideModel and return the new side
     this.oob.sides[side.sideId] = side;
-    return side.sideId;
+    return side;
   }
 
   /**
-   * Create a new force with a name, attach it to a side, and return an assigned Id
-   * @param {SideId} sideId Id of side to place force in
-   * @param {string} forceName Name of force
-   * @returns {number} ForceId assigned to new force
-   * @throws {Error} sideId not number, forceName not string, sideId does not exist
+   * Creates a force with a name and return the newly created ForceModel
+   * @param {ForceId} forceId Id of the force, must be unused
+   * @param {string} forceName Name of force or empty string if no name
+   * @returns {ForceModel} ForceModel of created force
+   * @throws {Error} forceId not number, forceName not string forceId already exist
    */
-  createForce(sideId, forceName) {
+  createForce(forceId, forceName) {
     // Test inputs
-    if (typeof sideId !== "number") {
+    if (typeof forceId !== "number") {
       throw new Error(
-        `OrderOfBattle.createForce(): sideId is not a number [${JSON.stringify(
-          sideId
+        `OrderOfBattle.createForce(): forceId is not a number [${JSON.stringify(
+          forceId
         )}]`
       );
     }
@@ -99,137 +106,191 @@ export class OrderOfBattle {
         )}]`
       );
     }
-    if (!this.oob.sides.hasOwnProperty(sideId)) {
+    if (this.oob.forces.hasOwnProperty(forceId)) {
       throw new Error(
-        `OrderOfBattle.createForce(): sideId does not exist  [${JSON.stringify(
-          forceName
+        `OrderOfBattle.createForce(): forceId already exists [${JSON.stringify(
+          forceId
         )}]`
       );
     }
 
-    // Create the new object and assign an Id
+    // Create the new force and assign an Id
     const force = {
-      sideId: sideId,
-      forceId: ++this.oob.idCounters.forces,
+      sideId: 0, // forces are optionally attached to sides with .setForceSide()
+      forceId: forceId,
       name: forceName,
       formations: new Set(),
     };
 
-    // Add the new object to the OOB, set the side and return the assigned Id
+    // Add the new force to the OOB and return the newly created object
     this.oob.forces[force.forceId] = force;
-    this.setForceSide(force.forceId, sideId);
-    return force.forceId;
+    return force;
   }
 
   /**
-   * Create a new formation with a name, attach it to a force, and return an assigned Id
-   * @param {ForceId} forceId Id of force to place formation in
-   * @param {string} formationName Name of formation
-   * @returns {number} FormationId assigned to new formation
-   * @throws {Error} forceId not number, formationName not string, forceId does not exist
+   * Creates a formation with a name and return the newly created FormationModel
+   * Optionally attach to a force which must exist
+   * @param {FormationId} formationId Id of the formation, must be unused
+   * @param {string} formationName Name of formation or empty string if no name
+   * @param {ForceId} attachedToForceId Id of the force this formation is attached to, or 0 if none
+   * @returns {FormationModel} FormationModel of created formation
+   * @throws {Error} formationId not number, formationName not string formationId already exist, attachedToForceId not a number, attachedToForceId does not exist
    */
-  createFormation(forceId, formationName) {
+  createFormation(formationId, formationName, attachedToForceId = 0) {
     // Test inputs
-    if (typeof forceId !== "number") {
+    if (typeof formationId !== "number") {
       throw new Error(
-        `OrderOfBattle.createForce(): forceId is not a number [${JSON.stringify(
-          forceId
+        `OrderOfBattle.createFormation(): formationId is not a number[${JSON.stringify(
+          formationId
         )}]`
       );
     }
     if (typeof formationName !== "string") {
       throw new Error(
-        `OrderOfBattle.createForce(): formationName is not a string  [${JSON.stringify(
+        `OrderOfBattle.createFormation(): formationName is not a string  [${JSON.stringify(
           formationName
         )}]`
       );
     }
-    if (!this.oob.forces.hasOwnProperty(forceId)) {
+    if (this.oob.formations.hasOwnProperty(formationId)) {
       throw new Error(
-        `OrderOfBattle.createForce(): forceId does not exist  [${JSON.stringify(
-          forceId
+        `OrderOfBattle.createFormation(): formationId already exists [${JSON.stringify(
+          formationId
         )}]`
       );
     }
+    if (attachedToForceId) {
+      if (typeof attachedToForceId !== "number") {
+        throw new Error(
+          `OrderOfBattle.createFormation(): attachedToForceId is not a number[${JSON.stringify(
+            attachedToForceId
+          )}]`
+        );
+      }
+      if (!this.oob.forces.hasOwnProperty(attachedToForceId)) {
+        throw new Error(
+          `OrderOfBattle.createFormation(): attachedToForceId does not exist  [${JSON.stringify(
+            attachedToForceId
+          )}]`
+        );
+      }
+    }
 
-    // Create the new object and assign an Id
+    // Create the new formation and set the force and formation id
     const formation = {
-      forceId: forceId,
-      formationId: ++this.oob.idCounters.formations,
+      forceId: attachedToForceId ? attachedToForceId : 0,
+      formationId: formationId,
       name: formationName,
       units: new Set(),
     };
 
-    // Add the new object to the OOB, add it to it's formation, and return the assigned Id
+    // Add the new formation to the OOB
     this.oob.formations[formation.formationId] = formation;
-    this.oob.forces[forceId].formations.add(formation.formationId);
-    return formation.formationId;
+
+    // If there is an attached force, add the formation to the force
+    if (formation.forceId) {
+      this.oob.forces[formation.forceId].formations.add(formation.formationId);
+    }
+
+    // Return the newly created formation
+    return formation;
   }
 
-  createUnit(
-    forceId,
-    formationId,
-    unitName,
-    hexCoord,
-    unitColors,
-    symbolName,
-    unitSize,
-    values
-  ) {
+  /**
+   * Tests if a UnitModel passes basic checks. Only checks that the right keys and value types exist, but does not check if Id's actually exist, hex coordinates are on map, etc.
+   * @param {UnitModel} unit UnitModel to test
+   * @param
+   * @return {boolean} True is unit has expected values, False if one or more values is missing or has an unexpected type, does not consider if values are actually valid just that they are there.
+   */
+  isUnitModelComplete(unit) {
+    // The unit model must be an object
+    if (typeof unit !== "object") {
+      return false;
+    }
+
+    // Check the Id's to make sure they are integers. This is a special case where 0 is considered
+    // "valid" for an Id because it is an integer. Any missing keys flag the unit as invalid.
+    if (!Number.isInteger(unit.forceId)) {
+      return false;
+    }
+    if (!Number.isInteger(unit.formationId)) {
+      return false;
+    }
+    if (!Number.isInteger(unit.unitId)) {
+      return false;
+    }
+
+    // Check if coordinates are integers but do not check if on map
+    if (
+      !Number.isInteger(unit.hexCoord?.x) ||
+      !Number.isInteger(unit.hexCoord?.y)
+    ) {
+      return false;
+    }
+
+    // Strings must be strings, zero length strings are allowed
+    if (typeof unit.name !== "string" || typeof unit.symbolName !== "string") {
+      return false;
+    }
+
+    // All of the colors must exist and at least be strings
+    const uc = unit.unitColors;
+    if (
+      typeof uc.counterForeground !== "string" ||
+      typeof uc.counterBackground !== "string" ||
+      typeof uc.symbolForeground !== "string" ||
+      typeof uc.symbolBackground !== "string"
+    ) {
+      return false;
+    }
+
+    // The values object must at least exist
+    if (typeof unit.values !== "object") {
+      return false;
+    }
+
+    // Falling through to this point means the unit has passed all tests
+    return true;
+  }
+
+  /**
+   * Adds a UnitModel to the oob, and adds it to it's formation.
+   * The UnitModel is checked for completeness and any model with missing or invalid data is rejected.
+   * @param {UnitModel} unitModel to add to the oob
+   * @returns {UnitModel} unitModel that was added to the oob
+   * @throws {Error} isUnitModelComplete() check failed, forceId or formationId do not exist
+   */
+  addUnit(unitModel) {
     // Test inputs
-    if (typeof forceId !== "number") {
+    if (!this.isUnitModelComplete(unitModel)) {
       throw new Error(
-        `OrderOfBattle.createForce(): forceId is not a number [${JSON.stringify(
-          forceId
-        )}]`
+        `OrderOfBattle.createUnit() unit fails isUnitModelComplete() check ${JSON.stringify(
+          unitModel
+        )}`
       );
     }
-    if (typeof formationId !== "number") {
-      throw new Error(
-        `OrderOfBattle.createForce(): formationId is not a number [${JSON.stringify(
-          formationId
-        )}]`
-      );
-    }
-    if (typeof unitName !== "string") {
-      throw new Error(
-        `OrderOfBattle.createForce(): unitName is not a string  [${JSON.stringify(
-          unitName
-        )}]`
-      );
-    }
-    if (!this.oob.forces.hasOwnProperty(forceId)) {
+
+    // At this point everything is guaranteed to be there and be a the right type
+    // Check if the forces and formations actually exist
+    if (!this.oob.forces.hasOwnProperty(unitModel.forceId)) {
       throw new Error(
         `OrderOfBattle.createUnit() unknown force ${JSON.stringify(
-          forceId
-        )} for unit ${JSON.stringify(unitName)}`
+          unitModel.forceId
+        )} for unit ${JSON.stringify(unitModel)}`
       );
     }
-    if (!this.oob.formations.hasOwnProperty(formationId)) {
+    if (!this.oob.formations.hasOwnProperty(unitModel.formationId)) {
       throw new Error(
         `OrderOfBattle.createUnit() unknown formation ${JSON.stringify(
-          formationId
-        )} for unit ${JSON.stringify(unitName)}`
+          unitModel.formationId
+        )} for unit ${JSON.stringify(unitModel)}`
       );
     }
 
-    // Create the new object and assign an Id
-    const unit = new Unit({
-      unitId: ++this.oob.idCounters.units,
-      forceId: forceId,
-      formationId: formationId,
-      name: unitName,
-      hexCoord: { ...hexCoord },
-      unitColors: { ...unitColors },
-      symbolName: symbolName,
-      unitSize: unitSize,
-      values: { ...values },
-    });
-
-    // Add the new object to the OOB, set the side and return the assigned Id
-    this.oob.units[unit.unitId] = unit;
-    this.oob.formations[formationId].units.add(unit.unitId);
-    return unit.unitId;
+    // Add the new UnitModel to the OOB, set the formation, and return model
+    this.oob.units[unitModel.unitId] = { ...unitModel };
+    this.oob.formations[unitModel.formationId].units.add(unitModel.unitId);
+    return unitModel;
   }
 
   /* ************************************************************************
@@ -326,7 +387,9 @@ export class OrderOfBattle {
       throw new Error(
         `OrderOfBattle.areUnitsOnSameSide(): Units [${JSON.stringify(
           unitIdA
-        )}] and [${JSON.stringify(unitIdB)}] error looking up sides [${e}]`
+        )}] and [${JSON.stringify(
+          unitIdB
+        )}] error looking up sides [${e}] [${JSON.stringify(this.oob.sides)}]`
       );
     }
   }
@@ -359,8 +422,8 @@ export class OrderOfBattle {
     }
 
     // Remove the force from all existing sides, this doesn't delete the force itself.
-    for (let sid of Object.keys(this.oob.sides)) {
-      this.oob.sides[sid].forces.delete(forceId);
+    for (const side of Object.values(this.oob.sides)) {
+      side.forces.delete(forceId);
     }
 
     // Add the force to the new side, and then set the forces new sideId

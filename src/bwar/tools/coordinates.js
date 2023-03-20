@@ -8,7 +8,7 @@
  
  */
 
-import "./shared-types.js";
+import "../shared-types.js";
 
 /** Enumerates the 6 directions that a flat topped hex can be exited, N NE SE S SW NW */
 // const Directions = { N: 0, NE: 1, SE: 2, S: 3, SW: 4, NW: 5 };

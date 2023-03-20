@@ -7,7 +7,7 @@ function App() {
   const [headerTextMessage, setHeaderTextMessage] = useState(undefined);
   const [buttonDisabled, setButtonDisabled] = useState(false);
   const memoBWAR = useMemo(
-    () => new BWARController(9, 5, setHeaderTextMessage, setButtonDisabled),
+    () => new BWARController(setHeaderTextMessage, setButtonDisabled),
     []
   );
 

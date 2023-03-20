@@ -1,34 +1,94 @@
-import { Hex, TerrainNames, TerrainData } from "./models.js";
-import { Coordinates } from "./coordinates";
-import { OrderOfBattle } from "./order-of-battle";
+import { Hex, TerrainNames, TerrainData, Unit, UnitValues } from "./models.js";
+import { Coordinates } from "./tools/coordinates";
+import { OrderOfBattle } from "./tools/order-of-battle";
 import TinyQueue from "tinyqueue";
 import "./shared-types.js";
 
 export class BWARModel {
   /**
    *
-   * @param {number} mapHexWidth Map width in hexes
+   * @param {ScenarioData} scenario Scenario to load to the model and oob
    * @param {number} mapHexHeight Map height in hexes
    */
-  constructor(mapHexWidth, mapHexHeight) {
-    this.mapHexWidth = mapHexWidth;
-    this.mapHexHeight = mapHexHeight;
+  constructor(scenario) {
+    // The scenario is read only, use it to load data onto the hex map and the OOB.
+    this.scenario = { ...scenario };
+
+    this.mapHexWidth = this.scenario.mapHexWidth;
+    this.mapHexHeight = this.scenario.mapHexHeight;
 
     // Create the order of battle
     this.oob = new OrderOfBattle();
 
-    const defaultHexTerrainId = TerrainNames.Grass;
-
-    // Create the map array
-    this.hexMap = new Array(mapHexHeight);
-    for (let y = 0; y < mapHexHeight; ++y) {
-      this.hexMap[y] = new Array(mapHexWidth);
-      for (let x = 0; x < mapHexWidth; ++x) {
+    // Create the map array and initialize it with default hexes
+    const defaultHexTerrainId = TerrainNames.Invalid;
+    this.hexMap = new Array(this.mapHexHeight);
+    for (let y = 0; y < this.mapHexHeight; ++y) {
+      this.hexMap[y] = new Array(this.mapHexWidth);
+      for (let x = 0; x < this.mapHexWidth; ++x) {
         this.hexMap[y][x] = new Hex({
           hexCoord: Coordinates.makeCart(x, y),
           terrainId: defaultHexTerrainId,
           moveCost: TerrainData[defaultHexTerrainId].moveCost,
         });
+      }
+    }
+
+    // Load the scenarios hex data
+    for (const hexData of this.scenario.hexes) {
+      const hex = new Hex(hexData);
+      hex.hexCoord = Coordinates.makeCart(hexData.x, hexData.y);
+      hex.moveCost = TerrainData[hex.terrainId].moveCost;
+      if (!this.isHexOnMap(hex.hexCoord)) {
+        throw new Error(
+          `BWARModel.constructor(): Off map hex in scenario [${JSON.stringify(
+            hexData
+          )}]`
+        );
+      }
+      this.hexMap[hexData.y][hexData.x] = hex;
+    }
+
+    // Setup the OOB
+    // Setup the forces, formations, and units
+    for (const scenarioForce of this.scenario.forces) {
+      const force = this.oob.createForce(
+        scenarioForce.forceId,
+        scenarioForce.name
+      );
+      for (const scenarioFormation of scenarioForce.formations) {
+        const formation = this.oob.createFormation(
+          scenarioFormation.formationId,
+          scenarioFormation.name,
+          force.forceId
+        );
+        for (const scenarioUnit of scenarioFormation.units) {
+          // Create the unit using the data in scenarioUnit, add forceId and formationId, and create the cart coordinates
+          const unit = new Unit(scenarioUnit);
+          unit.values = new UnitValues(unit.values)
+          unit.forceId = force.forceId;
+          unit.formationId = formation.formationId;
+          unit.hexCoord = Coordinates.makeCart(scenarioUnit.x, scenarioUnit.y);
+          // At this point the unit is fully created, and we can add it to the oob
+          this.oob.addUnit(unit);
+          // At this point we also can add the unit to it's stack
+          this.insertUnitIdToUnitStack(unit.unitId, unit.hexCoord);
+        }
+      }
+    }
+
+    // Setup the sides and add the forces to the sides
+    for (const scenarioSide of this.scenario.sides) {
+      const side = this.oob.createSide(scenarioSide.sideId, scenarioSide.name);
+      if (!Array.isArray(scenarioSide.forces)) {
+        throw new Error(
+          `BWARModel.constructor(): side forces is not an array [${JSON.stringify(
+            side
+          )}]`
+        );
+      }
+      for (const scenarioForceId of scenarioSide.forces) {
+        this.oob.setForceSide(scenarioForceId, side.sideId);
       }
     }
   }

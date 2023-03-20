@@ -1,8 +1,9 @@
 import { BWARView } from "./view";
 import { BWARModel } from "./model";
-import { Coordinates } from "./coordinates";
+import { Coordinates } from "./tools/coordinates";
 import { TerrainNames, TerrainData } from "./models";
-import { CombatEngine } from "./combat-engine";
+import { CombatEngine } from "./tools/combat-engine";
+import { CRUSADER41 } from "./scenarios/crusader41";
 import "@svgdotjs/svg.panzoom.js";
 import "./shared-types.js";
 
@@ -13,37 +14,25 @@ function getRandomInt(max) {
 export class BWARController {
   /**
    * Constructor
-   * @param {number} mapHexWidth Number of hexes wide
-   * @param {number} mapHexHeight Number of hexes tall
    * @param {Function} setHeaderTextMessage React useState() setter
    * @param {Function} setButtonDisabled React useState() setter
    */
-  constructor(
-    mapHexWidth,
-    mapHexHeight,
-    setHeaderTextMessage,
-    setButtonDisabled
-  ) {
+  constructor(setHeaderTextMessage, setButtonDisabled) {
+    this.view = undefined; // Start with no view until .attachView() is called
+
+    // Use a Scenario
+    this.scenario = CRUSADER41;
+    this.mapHexWidth = this.scenario.mapHexWidth;
+    this.mapHexHeight = this.scenario.mapHexHeight;
     console.log(
-      `   ...BWAR Constructor mapSize: ${mapHexWidth} x ${mapHexHeight} [${
-        mapHexWidth * mapHexHeight
-      }]`
+      `   ...BWAR Constructor Scenario [${this.scenario.name}]: ${
+        this.mapHexWidth
+      } x ${this.mapHexHeight} [${this.mapHexWidth * this.mapHexHeight}]`
     );
-    this.view = undefined;
-    this.mapHexWidth = mapHexWidth;
-    this.mapHexHeight = mapHexHeight;
-    this.mapSize = { height: mapHexHeight, width: mapHexWidth };
     this.setHeaderTextMessage = setHeaderTextMessage;
     this.setButtonDisabled = setButtonDisabled;
-    this.model = new BWARModel(mapHexWidth, mapHexHeight);
+    this.model = new BWARModel(this.scenario);
     this.combatEngine = new CombatEngine(this.model);
-
-    // Create a basic map
-    //this.scenarioCitiesAndRoads();
-    this.scenarioCombatTesting();
-
-    // Create two sides and some units
-    //this.oobRedVsBlue();
 
     console.log("=== Order of battle ===");
     console.log(this.model.oob.oob);
@@ -122,10 +111,36 @@ export class BWARController {
 
   /**
    * Behavior: Set the currently selected hex to the clicked hex.
-   * @param {CartCoordinate} hexCoord Coordinates of a hex that was single clicked.
+   * @param {CartCoordinate} clickedHexCoord Coordinates of a hex that was single clicked.
    */
-  view_hex_click(hexCoord) {
-    this.view.setSelectedHex(hexCoord);
+  view_hex_click(clickedHexCoord) {
+    if (Coordinates.isCoordsEqual(this.view.getSelectedHexCoord(), clickedHexCoord)) {
+      this.view.stackUnitCountersInHex(clickedHexCoord, true);
+    }
+    this.view.setSelectedHex(clickedHexCoord);
+    const clickedHex = this.model.getHex(clickedHexCoord);
+    if (clickedHex === undefined) {
+      throw new Error(
+        `BWARController.view_hex_click(): Could not get clicked hex [${JSON.stringify(
+          clickedHexCoord
+        )}]]`
+      );
+    }
+    const topUnitId = clickedHex.unitStack.getTopUnitId();
+    if (topUnitId) {
+      const unit = this.model.oob.getUnit(topUnitId);
+      if (unit === undefined) {
+        throw new Error(
+          `BWARController.view_hex_click(): Could not get unitId [${JSON.stringify(
+            topUnitId
+          )}]]`
+        );
+      }
+      this.setHeaderTextMessage(`[${unit.symbolName}] ${unit.name}`)
+    } else {
+      this.setHeaderTextMessage('None')
+    }
+
   }
 
   /**
@@ -170,14 +185,15 @@ export class BWARController {
       return;
     }
 
-    // If the clicked hex unit is our side, do nothing
+    // If the clicked hex unit is our side, move there
     if (
       this.model.oob.areUnitsOnSameSide(
         selectedHexTopUnitId,
         clickedHexTopUnitId
       )
     ) {
-      this.setHeaderTextMessage("Same side");
+      this.moveUnitIdToHexCoord(selectedHexTopUnitId, clickedHexCoord, true);
+      this.setHeaderTextMessage("Joined stack");
       return;
     }
 
@@ -194,10 +210,8 @@ export class BWARController {
     const attackerUnitId = selectedHexTopUnitId;
     const defenderUnitId = clickedHexTopUnitId;
 
-    const {
-      attResultCondition,
-      defResultCondition,
-    } = this.combatEngine.combatSingle(attackerUnitId, defenderUnitId);
+    const { attResultCondition, defResultCondition } =
+      this.combatEngine.combatSingle(attackerUnitId, defenderUnitId);
 
     // If the defender was destroyed remove it, otherwise update condition
     if (defResultCondition > 0) {
@@ -213,23 +227,36 @@ export class BWARController {
 
     // If the attacker was destroyed remove it, otherwise update condition
     if (attResultCondition > 0) {
+      // Attacker Survived
       this.model.oob.setUnitIdPercentCondition(
         attackerUnitId,
         attResultCondition
       );
       this.view.updateUnitIdCounter(attackerUnitId);
-      // If attacker survived, and the defender was destroyed, move the attacker to the defending hex
-      if (attResultCondition > 0 && defResultCondition <= 0) {
+      // If the defender died, and the target stack has no more units, move into it
+      if (
+        defResultCondition <= 0 &&
+        clickedHex.unitStack.getUnitCountInStack() < 1
+      ) {
+        // Move in, this will trigger a restack after the animation finishes
         this.model.moveUnitIdToHexCoord(attackerUnitId, defenderHexCoord);
         this.view.animationMoveUnitOnPath(
           attackerUnitId,
           [attackerHexCoord, defenderHexCoord],
           true
         );
+      } else {
+        // If there are more units in the hex, just restack both
+        this.view.stackUnitCountersInHex(attackerHexCoord);
+        this.view.stackUnitCountersInHex(defenderHexCoord);
       }
     } else {
+      // Attacker Destroyed
       this.view.removeUnitId(attackerUnitId);
       this.model.removeUnitId(attackerUnitId);
+      // restack both
+      this.view.stackUnitCountersInHex(attackerHexCoord);
+      this.view.stackUnitCountersInHex(defenderHexCoord);
     }
 
     // Update the header based on the result

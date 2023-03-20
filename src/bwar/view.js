@@ -1,7 +1,7 @@
 import { SVG } from "@svgdotjs/svg.js";
-import { Coordinates } from "./coordinates";
+import { Coordinates } from "./tools/coordinates";
 import { TerrainData, SvgLayers } from "./models";
-import { SymbolDraw } from "./symbol-draw";
+import { SymbolDraw } from "./tools/symbol-draw";
 import "./shared-types.js";
 
 const HEXPIXELRADIUS = 57; // Sets size of hexes in pixels
@@ -66,7 +66,7 @@ export class BWARView {
 
     // Holds information about the current state of the view
     this.state = {
-      shouldDisplayHexCoordinates: true, // Should the hex coordinates be shown on the view?
+      shouldDisplayHexCoordinates: false, // Should the hex coordinates be shown on the view?
       selectedHexCoord: undefined, // One hex can be selected and will draw with a thicker border
       numOfUnitsMoving: 0, // Number of units with running animation timelines
     };
@@ -76,6 +76,7 @@ export class BWARView {
       svgContainer: undefined, // The main SVG() object attached to the DOM
       hexesBase: undefined, // Hex outlines
       hexesCoords: undefined, // Hex coordinate text
+      hexesLabels: undefined, // Hex labels text
       unitsBase: undefined, // Unit Counters
     };
 
@@ -164,6 +165,7 @@ export class BWARView {
     this.svgGroups.svgContainer.clear();
     gr.hexesBase = gr.svgContainer.group().attr("id", "hexsBase");
     gr.hexesCoords = gr.svgContainer.group().attr("id", "hexsCoords");
+    gr.hexesLabels = gr.svgContainer.group().attr("id", "hexsLabels");
     gr.unitsBase = gr.svgContainer.group().attr("id", "unitsBase");
 
     // Walk the map and create each hex
@@ -187,6 +189,25 @@ export class BWARView {
           .fill(fillColor)
           .stroke({ width: 1, color: "Black" })
           .move(hexPixelCenter.x, hexPixelCenter.y);
+
+        // If a label exists, draw the text label
+        if (hex.label?.length > 0) {
+          gr.hexesLabels
+            .plain(hex.label)
+            .font({
+              family: "Verdana",
+              size: 15,
+              fill: "Black",
+              weight: "bold",
+              leading: 1.4,
+              anchor: "middle",
+            })
+            .attr("text-rendering", "optimizeSpeed")
+            .amove(
+              hexPixelCenter.x + g.hexPixelWidth / 2,
+              hexPixelCenter.y + g.hexPixelHeight * 0.12
+            );
+        }
       }
     }
 
@@ -246,7 +267,7 @@ export class BWARView {
           .attr("text-rendering", "optimizeSpeed")
           .amove(
             hexPixelCenter.x + g.hexPixelWidth / 2,
-            hexPixelCenter.y + g.hexPixelHeight * 0.12
+            hexPixelCenter.y + g.hexPixelHeight * 0.94
           );
       }
     }
@@ -299,6 +320,15 @@ export class BWARView {
     console.log(
       `   ...Created ${unitIds.length} unit counters in ${Math.round(
         end_time - start_time
+      )}ms`
+    );
+
+    const start_time2 = performance.now();
+    this.stackAllUnitCounters();
+    const end_time2 = performance.now();
+    console.log(
+      `   ...Stacked ${unitIds.length} unit counters in ${Math.round(
+        end_time2 - start_time2
       )}ms`
     );
   }
@@ -449,7 +479,7 @@ export class BWARView {
       );
 
     valuesSvg.bottomRight = unitSvg
-      .plain(Math.round(values.defend * percentCondition) || "-")
+      .plain(Math.round(values.defense * percentCondition) || "-")
       .font({ family: "Verdana", size: 12, fill: "Black", weight: "bold" })
       .center(
         gu.pixelCounterWidth * gu.percentRightSide,
@@ -526,6 +556,83 @@ export class BWARView {
       pixelCoord.x - this.geometry.unitCounters.pixelCounterWidth / 2,
       pixelCoord.y - this.geometry.unitCounters.pixelCounterHeight / 2
     );
+  }
+
+  stackAllUnitCounters() {
+    const hexCoordsStacked = new Set();
+
+    for (const unitId of this.model.oob.getAllUnitIds()) {
+      // Get the unit
+      const unit = this.model.oob.getUnit(unitId);
+      if (unit === undefined) {
+        throw new Error(
+          `BWARView.stackAllUnitCounters(): UnitId cannot be found [${JSON.stringify(
+            unitId
+          )}]]`
+        );
+      }
+      // Skip if the units hex has already been stacked
+      const keyCoord = `${unit.hexCoord.x},${unit.hexCoord.y}`;
+      if (hexCoordsStacked.has(keyCoord)) {
+        continue;
+      }
+      // New hex, stack it
+      hexCoordsStacked.add(keyCoord);
+      this.stackUnitCountersInHex(unit.hexCoord);
+    }
+  }
+
+  stackUnitCountersInHex(targetHexCoord, cycleUnits = false) {
+    // Get the hex
+    const hex = this.model.getHex(targetHexCoord);
+    if (hex === undefined) {
+      throw new Error(
+        `BWARView.stackUnitCountersInHex(): Target hex cannot be found [${JSON.stringify(
+          targetHexCoord
+        )}]`
+      );
+    }
+
+    // If no units, nothing to do
+    const stackLength = hex.unitStack.getUnitCountInStack();
+    if (stackLength === 0) {
+      return;
+    }
+
+    // If requested cycle the units, moving the top unit to the bottom
+    if (cycleUnits) {
+      hex.unitStack.cycleUnits();
+    }
+
+    // Get the pixel center of target hex
+    const gu = this.geometry.unitCounters;
+    const pixelCoord = this.hexToPixel(targetHexCoord);
+
+    /* 
+      Each counter will be slightly offset up and left from the counter under it.
+      The offset between counters decreases as the number of counters goes up.
+    */
+    const deltaOffset = 0.05 * Math.pow(0.9, stackLength);
+    const maxOffset = (stackLength - 1) * deltaOffset;
+
+    /* Walk through each unit, adjust it's position, and move it to the front. This will sort the 
+           units correctly and cause the last unit in the stack to be displayed on top.
+        */
+    for (let i = 0; i < stackLength; ++i) {
+      let offset = maxOffset - deltaOffset * (stackLength - 1 - i);
+      const x =
+        pixelCoord.x +
+        maxOffset * stackLength * 4 -
+        gu.pixelCounterWidth * (0.5 + offset);
+      const y =
+        pixelCoord.y +
+        maxOffset * stackLength * 4 -
+        gu.pixelCounterHeight * (0.5 + offset);
+      const unitId = hex.unitStack.getUnitIdAtIndex(i);
+      const unit = this.model.oob.getUnit(unitId);
+      unit.svgLayers.base.transform({ position: [x, y], origin: "top left" });
+      unit.svgLayers.base.front();
+    }
   }
 
   /* ************************************************************************
@@ -744,22 +851,17 @@ export class BWARView {
     this.state.numOfUnitsMoving += 1;
 
     // .after() runs after the animation timeline finishes
-    if (updateSelectedHex) {
-      unitSvg.animate({ duration: 15, delay: 15, wait: 0 }).after(() => {
+    unitSvg.animate({ duration: 15, delay: 15, wait: 0 }).after(() => {
+      if (updateSelectedHex) {
         this.setSelectedHex(movePath[movePath.length - 1]);
-        this.state.numOfUnitsMoving -= 1;
-        if (shouldSignalMoveEnd) {
-          this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving);
-        }
-      });
-    } else {
-      unitSvg.animate({ duration: 15, delay: 15, wait: 0 }).after(() => {
-        this.state.numOfUnitsMoving -= 1;
-        if (shouldSignalMoveEnd) {
-          this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving);
-        }
-      });
-    }
+      }
+      this.stackUnitCountersInHex(movePath[0]);
+      this.stackUnitCountersInHex(movePath[movePath.length - 1]);
+      this.state.numOfUnitsMoving -= 1;
+      if (shouldSignalMoveEnd) {
+        this.controller.viewUnitAnimationEnded(this.state.numOfUnitsMoving);
+      }
+    });
   }
 
   /* ************************************************************************

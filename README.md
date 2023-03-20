@@ -10,21 +10,22 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 * https://vocal-puppy-27b12a.netlify.app/
 
-# Screenshot
+# Screenshots
 
-![screenshot](./Images/update10.png "update #10")
-
-# Performance Issues
-
-The SVG.JS ```.text().move()``` call when creating hex coordinate labels was very slow.
-
-* https://github.com/svgdotjs/svg.js/issues/1240
-
-Changing the call to ```.plain().move()``` fixed the issue. Using ```.plain()``` skips a lot of expensive formatting / baseline / newline logic that ```.text()``` uses.
-
-Speed is now very good. Changing the ```.move()``` to ```.amove()``` or directly setting the transform with ```.attr()``` may improve more.
+![screenshot](./Images/update11-small.png "update #11 small")
+![screenshot](./Images/update11-large.png "update #11 small")
 
 # Update History
+
+## [11] Crusader41 Scenario
+* Display the Crusader41 "Siege of Tobruk" scenario from original BWAR
+* Units stack in hex, clicking hex cycles stack
+* Controller and model now work with scenarios which are stored as json files
+* Combat system mechanics are working but values aren't tuned so ignore results
+* 3192 hexes, 332 unit counters
+* Destkop performance is good except when zoomed all the way out
+* Mobile performance a little slower but not bad
+
 
 ## [10] Unit symbols and stats, basic combat
 * Unit symbols drawn on counter
@@ -33,6 +34,9 @@ Speed is now very good. Changing the ```.move()``` to ```.amove()``` or directly
 * Click unit to select, double click empty hex to move
 * Double click an adjacent hex with an enemy to attack
 * No unit stacking this version
+* Demo: https://jolly-smakager-1f6886.netlify.app/
+
+
 
 ## [9] Performance Testing
 * Created larger map with 25 red 25 blue units

@@ -18,7 +18,11 @@ class UnitStack {
   /** Returns a unitId at the index */
   getUnitIdAtIndex(index) {
     if (index < 0 || index >= this.unitArray.length) {
-      throw new Error(`UnitStack.getUnitIdAtIndex(): passed invalid index [${JSON.stringify(index)}]`);
+      throw new Error(
+        `UnitStack.getUnitIdAtIndex(): passed invalid index [${JSON.stringify(
+          index
+        )}]`
+      );
     }
     return this.unitArray[index];
   }
@@ -54,7 +58,11 @@ class UnitStack {
   /** Moves the unitId to the top of the stack */
   moveUnitIdToTop(unitId) {
     if (!this.unitSet.has(unitId)) {
-      throw new Error(`UnitStack.moveUnitToTop(): unit does not exist in unitSet ${JSON.stringify(unitId)}`);
+      throw new Error(
+        `UnitStack.moveUnitToTop(): unit does not exist in unitSet ${JSON.stringify(
+          unitId
+        )}`
+      );
     }
     let idx = this.unitArray.indexOf(unitId);
     this.unitArray.splice(idx, 1);

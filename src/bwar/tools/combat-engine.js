@@ -4,11 +4,11 @@
 
     Units are either "soft" like Infantry, or "hard" like tanks.
     Units have soft attack and hard attack value.
-    Units have one defend value.
+    Units have one defense value.
     A unit uses it's soft attack value to attack a soft unit.
     A unit uses it's hard attack value to attack a hard unit.
     Units have a percentCondition value from 0.0 to 1.0.
-    A Units attack and defend values scale with its percentCondition.
+    A Units attack and defense values scale with its percentCondition.
     Attack values are displayed on the bottom of each counter as "SoftAttack - HardAttack - Defend"
     
     Combat Steps 1v1
@@ -90,8 +90,8 @@ export class CombatEngine {
       attUnit.values.unitType === "Soft"
         ? defUnit.values.attackSoft
         : defUnit.values.attackHard;
-    let attDefendValue = attUnit.values.defend;
-    let defDefendValue = defUnit.values.defend;
+    let attDefendValue = attUnit.values.defense;
+    let defDefendValue = defUnit.values.defense;
 
     // The values scale with percentCondition
     attAttackValue *= attUnit.values.percentCondition;
@@ -106,7 +106,7 @@ export class CombatEngine {
     /*
             Each unit rolls dice to see if it succeeds in the combat
             Math.random() <= (0 / 0) = false    If both sides 0, both always lose
-            Math.random() <= (1 / 0) = true     If defender 0, attacker always wins
+            Math.random() <= (1 / 0) = true     If defenseer 0, attacker always wins
     */
     const didAttSucceed = Math.random() <= attSuccessPercent;
     const didDefSucceed = Math.random() <= defSuccessPercent;
