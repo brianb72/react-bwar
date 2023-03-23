@@ -23,7 +23,7 @@ A rewrite of my old BWAR project that converts it into a React application.
 * Controller and model now work with scenarios which are stored as json files
 * Combat system mechanics are working but values aren't tuned so ignore results
 * 3192 hexes, 332 unit counters
-* Destkop performance is good except when zoomed all the way out
+* Desktop performance is good except when zoomed all the way out
 * Mobile performance a little slower but not bad
 
 

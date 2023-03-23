@@ -31,6 +31,11 @@ export class BWARController {
     );
     this.setHeaderTextMessage = setHeaderTextMessage;
     this.setButtonDisabled = setButtonDisabled;
+
+    // Loading will not finish until the view is created
+    this.setHeaderTextMessage("Loading...");
+    this.setButtonDisabled(true);
+
     this.model = new BWARModel(this.scenario);
     this.combatEngine = new CombatEngine(this.model);
 
@@ -62,6 +67,8 @@ export class BWARController {
         this.setHeaderTextMessage
       );
       this.setupView();
+      this.setHeaderTextMessage("Scenario Ready");
+      this.setButtonDisabled(false);
     }
     const svgContainer = this.view.getSvgContainer();
     svgContainer.addTo(targetDivElement);
@@ -77,6 +84,7 @@ export class BWARController {
   randomWalkAllUnits() {
     const toHexes = new Set();
     let targetCoord;
+    this.setHeaderTextMessage("Please wait...");
     const unitIds = this.model.oob.getAllUnitIds();
     for (const unitId of unitIds) {
       while (true) {
@@ -114,7 +122,12 @@ export class BWARController {
    * @param {CartCoordinate} clickedHexCoord Coordinates of a hex that was single clicked.
    */
   view_hex_click(clickedHexCoord) {
-    if (Coordinates.isCoordsEqual(this.view.getSelectedHexCoord(), clickedHexCoord)) {
+    if (
+      Coordinates.isCoordsEqual(
+        this.view.getSelectedHexCoord(),
+        clickedHexCoord
+      )
+    ) {
       this.view.stackUnitCountersInHex(clickedHexCoord, true);
     }
     this.view.setSelectedHex(clickedHexCoord);
@@ -136,11 +149,10 @@ export class BWARController {
           )}]]`
         );
       }
-      this.setHeaderTextMessage(`[${unit.symbolName}] ${unit.name}`)
+      this.setHeaderTextMessage(`[${unit.symbolName}] ${unit.name}`);
     } else {
-      this.setHeaderTextMessage('None')
+      this.setHeaderTextMessage("None");
     }
-
   }
 
   /**
@@ -161,8 +173,29 @@ export class BWARController {
       );
     }
 
-    // Get the selected hex, and if it exists the top unit id
+    // Get the selected hex coordinates from the view
     const selectedHexCoord = this.view.getSelectedHexCoord();
+
+    // If the dblclicked hex is the same as the selected hex, cycle the units in the stack
+    if (Coordinates.isCoordsEqual(selectedHexCoord, clickedHexCoord)) {
+      clickedHex.unitStack.cycleUnits();
+      this.view.stackUnitCountersInHex(clickedHexCoord);
+      const newTopUnitId = clickedHex.unitStack.getTopUnitId();
+      const newTopUnit = this.model.oob.getUnit(newTopUnitId);
+      if (newTopUnit === undefined) {
+        throw new Error(
+          `BWARController.view_hex_dblclick(): Could not new top unit of hex [${JSON.stringify(
+            newTopUnitId
+          )}]`
+        );
+      }
+      this.setHeaderTextMessage(
+        `[${newTopUnit.symbolName}] ${newTopUnit.name}`
+      );
+      return;
+    }
+
+    // Get the selected hex and it's top unit
     const selectedHex = selectedHexCoord
       ? this.model.getHex(selectedHexCoord)
       : undefined;
@@ -181,7 +214,7 @@ export class BWARController {
 
     // If there is no unit, move there
     if (!clickedHexTopUnitId) {
-      this.moveUnitIdToHexCoord(selectedHexTopUnitId, clickedHexCoord, true);
+      this.moveUnitIdToHexCoord(selectedHexTopUnitId, clickedHexCoord, true, true, false);
       return;
     }
 
@@ -192,8 +225,8 @@ export class BWARController {
         clickedHexTopUnitId
       )
     ) {
-      this.moveUnitIdToHexCoord(selectedHexTopUnitId, clickedHexCoord, true);
-      this.setHeaderTextMessage("Joined stack");
+      this.moveUnitIdToHexCoord(selectedHexTopUnitId, clickedHexCoord, true, true, false);
+      //this.setHeaderTextMessage("Joined stack");
       return;
     }
 
