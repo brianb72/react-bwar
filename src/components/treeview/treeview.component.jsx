@@ -28,7 +28,7 @@ const TreeView = ({treeViewData, selectedUnitId, setSelectedUnitId}) => {
     const k = 'u' + unit.unitId;
     const cssClasses = unit.unitId === selectedUnitId ? "tv-unit tv-unit-selected" : "tv-unit";    
     return (
-      <div className={cssClasses} onClick={clickUnitRow} unitid={unit.unitId} key={k}>{unit.name}  | {unit.soft} - {unit.hard} - {unit.defense}</div>
+      <div className={cssClasses} onClick={clickUnitRow} unitid={unit.unitId} key={k}>{unit.symbolName} | {unit.name}  | {unit.soft} - {unit.hard} - {unit.defense}</div>
     )
   }
 

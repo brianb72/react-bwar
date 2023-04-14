@@ -1,3 +1,4 @@
+import { SVG } from "@svgdotjs/svg.js";
 import { BWARView } from "./view";
 import { BWARModel } from "./model";
 import { Coordinates } from "./tools/coordinates";
@@ -28,11 +29,14 @@ export class BWARController {
         this.mapHexWidth
       } x ${this.mapHexHeight} [${this.mapHexWidth * this.mapHexHeight}]`
     );
-    this.setHeaderTextMessage = reactSetters.setHeaderTextMessage;
-    this.setTreeViewData = reactSetters.setTreeViewData;
+    this.reactSetHeaderTextMessage = reactSetters.setHeaderTextMessage;
+    this.reactSetTreeViewData = reactSetters.setTreeViewData;
+    this.reactSetSelectedUnitId = reactSetters.setSelectedUnitId;
+    this.reactSetUnitData = reactSetters.setUnitData;
+    this.reactSetHexdata = reactSetters.setHexData;
 
     // Loading will not finish until the view is created
-    this.setHeaderTextMessage("Loading...");
+    this.reactSetHeaderTextMessage("Loading...");
 
     this.model = new BWARModel(this.scenario);
     this.combatEngine = new CombatEngine(this.model);
@@ -42,7 +46,7 @@ export class BWARController {
     console.log("===                 ===");
 
     const treeViewData = this.model.oob.getDataForTreeView();
-    this.setTreeViewData(treeViewData);
+    this.reactSetTreeViewData(treeViewData);
   }
 
   /**
@@ -65,10 +69,10 @@ export class BWARController {
         this.model,
         this.mapHexWidth,
         this.mapHexHeight,
-        this.setHeaderTextMessage
+        this.reactSetHeaderTextMessage
       );
       this.setupView();
-      this.setHeaderTextMessage("Scenario Ready");
+      this.reactSetHeaderTextMessage("Scenario Ready");
     }
     const svgContainer = this.view.getSvgContainer();
     svgContainer.addTo(targetDivElement);
@@ -80,6 +84,7 @@ export class BWARController {
 
   setSelectedUnitId(unitId) {
     if (unitId === 0) {
+      this.updateReactUnitBox(0);
       return;
     }
     const unit = this.model.oob.getUnit(unitId);
@@ -100,7 +105,10 @@ export class BWARController {
       );
     }
 
+    this.updateReactUnitBox(unit.unitId);
+    this.updateReactHexBox(unit.hexCoord);
     hex.unitStack.moveUnitIdToTop(unitId);
+    this.view.stackUnitCountersInHex(unit.hexCoord);
     this.view.panToHex(unit.hexCoord);
     this.view.setSelectedHex(unit.hexCoord);
   }
@@ -111,7 +119,7 @@ export class BWARController {
   randomWalkAllUnits() {
     const toHexes = new Set();
     let targetCoord;
-    this.setHeaderTextMessage("Please wait...");
+    this.reactSetHeaderTextMessage("Please wait...");
     const unitIds = this.model.oob.getAllUnitIds();
     for (const unitId of unitIds) {
       while (true) {
@@ -127,7 +135,7 @@ export class BWARController {
       }
       this.moveUnitIdToHexCoord(unitId, targetCoord, false, true, true);
     }
-    this.setHeaderTextMessage(
+    this.reactSetHeaderTextMessage(
       `Moving units: ${this.view.state.numOfUnitsMoving}`
     );
   }
@@ -148,6 +156,14 @@ export class BWARController {
    * @param {CartCoordinate} clickedHexCoord Coordinates of a hex that was single clicked.
    */
   view_hex_click(clickedHexCoord) {
+    if (!clickedHexCoord) {
+      this.reactSetHeaderTextMessage("None");
+      this.reactSetSelectedUnitId(0);
+      this.updateReactUnitBox(0)
+      this.updateReactHexBox(undefined);
+      return
+    }
+
     if (
       Coordinates.isCoordsEqual(
         this.view.getSelectedHexCoord(),
@@ -169,15 +185,23 @@ export class BWARController {
     if (topUnitId) {
       const unit = this.model.oob.getUnit(topUnitId);
       if (unit === undefined) {
+        this.reactSetSelectedUnitId(0);
         throw new Error(
           `BWARController.view_hex_click(): Could not get unitId [${JSON.stringify(
             topUnitId
           )}]]`
         );
       }
-      this.setHeaderTextMessage(`[${unit.symbolName}] ${unit.name}`);
+      this.reactSetHeaderTextMessage(`[${unit.symbolName}] ${unit.name}`);
+      this.reactSetSelectedUnitId(unit.unitId);
+      this.updateReactUnitBox(unit.unitId)
+      this.updateReactHexBox(clickedHexCoord);
+
     } else {
-      this.setHeaderTextMessage("None");
+      this.reactSetHeaderTextMessage("None");
+      this.reactSetSelectedUnitId(0);
+      this.updateReactUnitBox(0)
+      this.updateReactHexBox(clickedHexCoord);
     }
   }
 
@@ -215,7 +239,7 @@ export class BWARController {
           )}]`
         );
       }
-      this.setHeaderTextMessage(
+      this.reactSetHeaderTextMessage(
         `[${newTopUnit.symbolName}] ${newTopUnit.name}`
       );
       return;
@@ -264,7 +288,6 @@ export class BWARController {
         true,
         false
       );
-      //this.setHeaderTextMessage("Joined stack");
       return;
     }
 
@@ -274,7 +297,7 @@ export class BWARController {
 
     // Combat hexes must be adjacent, otherwise abort
     if (Coordinates.hexDistance(attackerHexCoord, defenderHexCoord) > 1) {
-      this.setHeaderTextMessage("Too far");
+      this.reactSetHeaderTextMessage("Too far");
       return;
     }
 
@@ -332,13 +355,13 @@ export class BWARController {
 
     // Update the header based on the result
     if (defResultCondition > 0 && attResultCondition > 0) {
-      this.setHeaderTextMessage("Defender Held");
+      this.reactSetHeaderTextMessage("Defender Held");
     } else if (defResultCondition <= 0 && attResultCondition > 0) {
-      this.setHeaderTextMessage("Attacker Won");
+      this.reactSetHeaderTextMessage("Attacker Won");
     } else if (defResultCondition > 0 && attResultCondition <= 0) {
-      this.setHeaderTextMessage("Defender Won");
+      this.reactSetHeaderTextMessage("Defender Won");
     } else {
-      this.setHeaderTextMessage("Both Destroyed");
+      this.reactSetHeaderTextMessage("Both Destroyed");
     }
   }
 
@@ -360,15 +383,75 @@ export class BWARController {
    */
   viewUnitAnimationEnded(numOfUnitsMoving) {
     if (numOfUnitsMoving) {
-      this.setHeaderTextMessage(`Moving units: ${numOfUnitsMoving}`);
+      this.reactSetHeaderTextMessage(`Moving units: ${numOfUnitsMoving}`);
     } else {
-      this.setHeaderTextMessage("None");
+      this.reactSetHeaderTextMessage("None");
     }
   }
 
   /* ************************************************************************
         Units utility
    ************************************************************************ */
+
+
+  updateReactUnitBox(unitId) {
+    if (unitId === 0) { 
+      this.reactSetUnitData({}) 
+      return;
+    }
+
+    const unit = this.model.oob.getUnit(unitId);
+    if (unit === undefined) {
+      throw new Error(
+        `BWARController.updateReactUnitBox(): Could not get unitId [${JSON.stringify(
+          unitId
+        )}]`
+      );
+    }
+
+    const newSvg = SVG()
+    const unitSvg = unit.svgLayers.base.clone().move(0,0).transform({})
+    const bbox = unitSvg.bbox()
+    unitSvg.addTo(newSvg)
+    newSvg.size(bbox.width, bbox.height)
+
+    this.reactSetUnitData({
+      symbolName: unit.symbolName,
+      forceName: this.model.oob.getForceName(unit.forceId),
+      formationName: this.model.oob.getFormationName(unit.formationId),
+      unitName: this.model.oob.getUnitName(unit.unitId),
+      valueString: `${unit.values.attackSoft || 0} - ${unit.values.attackHard || 0} - ${unit.values.defense || 0}`,
+      svgUnit: newSvg,
+    })
+  }
+
+  updateReactHexBox(hexCoord) {
+    if (!hexCoord) { 
+      this.reactSetHexdata({})
+      return
+    }
+
+    const hex = this.model.getHex(hexCoord);
+    if (hex === undefined) {
+      throw new Error(
+        `BWARController.updateReactHexBox(): Could not get hex [${JSON.stringify(
+          hexCoord
+        )}]`
+      );
+    }
+    
+    const newSvg = SVG()
+    const hexSvg = hex.hexSvg.clone().move(0, 0).transform({})
+    hexSvg.attr("stroke-width", 1)
+    const bbox = hexSvg.bbox()
+    hexSvg.addTo(newSvg)
+    newSvg.size(bbox.width * 1.05, bbox.height * 1.05)
+
+    this.reactSetHexdata({ 
+      terrainName: TerrainData[hex.terrainId]?.name,
+      svgHex: newSvg,
+    })
+  }
 
   /**
    * Moves a unit by pathfinding between unit hex and target hex in both the view and model

@@ -297,6 +297,48 @@ export class OrderOfBattle {
         Lookup
    ************************************************************************ */
 
+  getSideName(sideId) {
+    try {
+      return this.oob.sides[sideId].name;
+    } catch {
+      throw new Error(
+        `OrderOfBattle.getSideName() unknown side ${JSON.stringify(sideId)}`
+      );
+    }
+  }
+      
+  getForceName(forceId) {
+    try {
+      return this.oob.forces[forceId].name;
+    } catch {
+      throw new Error(
+        `OrderOfBattle.getForceName() unknown force ${JSON.stringify(forceId)}`
+      );
+    }
+  }
+
+
+  getFormationName(formationId) {
+    try {
+      return this.oob.formations[formationId].name;
+    } catch {
+      throw new Error(
+        `OrderOfBattle.getFormationName() unknown formation ${JSON.stringify(formationId)}`
+      );
+    }
+  }
+
+  getUnitName(unitId) {
+    try {
+      return this.oob.units[unitId].name;
+    } catch {
+      throw new Error(
+        `OrderOfBattle.getUnitName() unknown unit ${JSON.stringify(unitId)}`
+      );
+    }
+  }
+
+
 
   getDataForTreeView() {
     const sides = [];
@@ -327,6 +369,7 @@ export class OrderOfBattle {
             units.push({
               unitId: unitId,
               name: unit.name,
+              symbolName: unit.symbolName,
               soft: unitValues.soft,
               hard: unitValues.hard,
               defense: unitValues.defense,
@@ -339,8 +382,7 @@ export class OrderOfBattle {
               soft: formationValues.soft,
               hard: formationValues.hard,
               defense: formationValues.defense,
-              units: units
-              
+              units: units,
             });
           }
         }
@@ -350,8 +392,8 @@ export class OrderOfBattle {
           soft: forceValues.soft,
           hard: forceValues.hard,
           defense: forceValues.defense,
-          formations: formations
-        })
+          formations: formations,
+        });
       }
       sides.push({
         sideId: sideId,
@@ -359,11 +401,11 @@ export class OrderOfBattle {
         soft: sideValues.soft,
         hard: sideValues.hard,
         defense: sideValues.defense,
-        forces: forces
-      })      
+        forces: forces,
+      });
     }
 
-      return sides
+    return sides;
   }
 
   /**

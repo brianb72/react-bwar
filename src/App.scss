@@ -31,10 +31,7 @@
     grid-area: content;
     overflow: hidden;
     display: grid;
-    grid-template-columns: 1fr 250px;
-    @media (min-width: 1000px) {
-      grid-template-columns: 1fr 450px;
-    }
+    grid-template-columns: 1fr 450px;
   }
 
   .page-sidebar {
@@ -44,14 +41,15 @@
     padding: 1rem;
     overflow: hidden;
 
-
-
     .page-unit {
       display: grid;
       border: 2px solid black;
+      overflow-y: hidden;
+      font-size: 1.1rem;
+      font-weight: bold;
 
       grid-template-columns: 50% 50%;
-  
+
       .page-unit__left {
         display: grid;
         grid-template-rows: 75% 25%;
@@ -59,26 +57,33 @@
 
       .page-unit__right {
         display: grid;
-        grid-template-rows: repeat(4,25%);
+        grid-template-rows: repeat(4, 25%);
       }
-    
     }
 
     .page-unit__left > div {
       border: 1px solid black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .page-unit__right > div {
       border: 1px solid black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .page-hex {
       display: grid;
       border: 2px solid black;
       overflow-y: hidden;
+      font-size: 1.1rem;
+      font-weight: bold;
 
       grid-template-columns: 50% 50%;
-  
+
       .page-hex__left {
         display: grid;
         grid-template-rows: 75% 25%;
@@ -90,29 +95,32 @@
         flex-direction: column;
         flex-wrap: wrap;
       }
-   
     }
 
     .page-hex__left > div {
       border: 1px solid black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .page-hex__right > div {
       overflow-y: hidden;
-      width: 50%;
-      height: 20%;
-      display: inline-block;
       border: 1px solid black;
-     }
+      font-size: 1rem;
+      font-weight: bold;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
 
     .page-oob {
       border: 1px solid black;
       overflow-y: hidden;
     }
   }
-
-
-
 
   .page-footer {
     grid-area: footer;
@@ -126,8 +134,17 @@
     }
   }
 
-  .page-content svg {
+  .main-svg svg {
     height: 100%;
     width: 100%;
+  }
+
+  @media (max-width: 1000px) or (max-height: 500px) {
+    .page-sidebar {
+      display: none;
+    }
+    .page-content {
+      grid-template-columns: 100%;
+    }
   }
 }

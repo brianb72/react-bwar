@@ -12,10 +12,17 @@ A rewrite of my old BWAR project that converts it into a React application.
 
 # Screenshots
 
-![screenshot](./Images/update11-small.png "update #11 small")
-![screenshot](./Images/update11-large.png "update #11 small")
+![screenshot](./Images/update12-large.png "update #12")
+![screenshot](./Images/update11-large.png "update #11")
 
 # Update History
+
+## [12] Added sidebar with order of battle
+* Order of battle with forces, formations, and units
+* Click a unit on OOB to select and zoom to it
+* Click a unit on map to select it in OOB
+* Unit and Hex information areas update when selected items change
+* Sidebar disabled on smaller displays
 
 ## [11] Crusader41 Scenario
 * Display the Crusader41 "Siege of Tobruk" scenario from original BWAR
