@@ -864,6 +864,21 @@ export class BWARView {
     });
   }
 
+
+  /**
+   * Pans the view from the current position to hexCoord, does not adjust zoom
+   * @param {CartCoordinate} hexCoord 
+   */
+  panToHex(hexCoord) {
+    const pixelCoord = this.hexToPixel(hexCoord)
+    const oldBox = this.svgGroups.svgContainer.viewbox()
+    const newBox = oldBox.transform({ translate: [
+      pixelCoord.x - oldBox.cx,
+      pixelCoord.y - oldBox.cy
+    ] })
+    this.svgGroups.svgContainer.animate().viewbox(newBox)
+  }
+
   /* ************************************************************************
         Misc utility
    ************************************************************************ */

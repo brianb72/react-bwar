@@ -14,10 +14,9 @@ function getRandomInt(max) {
 export class BWARController {
   /**
    * Constructor
-   * @param {Function} setHeaderTextMessage React useState() setter
-   * @param {Function} setButtonDisabled React useState() setter
+   * @param {Object} reactSetters React useState() setters
    */
-  constructor(setHeaderTextMessage, setButtonDisabled) {
+  constructor(reactSetters) {
     this.view = undefined; // Start with no view until .attachView() is called
 
     // Use a Scenario
@@ -29,12 +28,11 @@ export class BWARController {
         this.mapHexWidth
       } x ${this.mapHexHeight} [${this.mapHexWidth * this.mapHexHeight}]`
     );
-    this.setHeaderTextMessage = setHeaderTextMessage;
-    this.setButtonDisabled = setButtonDisabled;
+    this.setHeaderTextMessage = reactSetters.setHeaderTextMessage;
+    this.setTreeViewData = reactSetters.setTreeViewData;
 
     // Loading will not finish until the view is created
     this.setHeaderTextMessage("Loading...");
-    this.setButtonDisabled(true);
 
     this.model = new BWARModel(this.scenario);
     this.combatEngine = new CombatEngine(this.model);
@@ -42,6 +40,9 @@ export class BWARController {
     console.log("=== Order of battle ===");
     console.log(this.model.oob.oob);
     console.log("===                 ===");
+
+    const treeViewData = this.model.oob.getDataForTreeView();
+    this.setTreeViewData(treeViewData);
   }
 
   /**
@@ -68,7 +69,6 @@ export class BWARController {
       );
       this.setupView();
       this.setHeaderTextMessage("Scenario Ready");
-      this.setButtonDisabled(false);
     }
     const svgContainer = this.view.getSvgContainer();
     svgContainer.addTo(targetDivElement);
@@ -77,6 +77,33 @@ export class BWARController {
   /* ************************************************************************
         Controller events - Outside calling controller
    ************************************************************************ */
+
+  setSelectedUnitId(unitId) {
+    if (unitId === 0) {
+      return;
+    }
+    const unit = this.model.oob.getUnit(unitId);
+    if (unit === undefined) {
+      throw new Error(
+        `BWARController.setSelectedUnitId(): Could not get unit for unitId [${JSON.stringify(
+          unitId
+        )}]]`
+      );
+    }
+
+    const hex = this.model.getHex(unit.hexCoord);
+    if (hex === undefined) {
+      throw new Error(
+        `BWARController.setSelectedUnitId(): Could not get hex for unit [${JSON.stringify(
+          unit
+        )}]]`
+      );
+    }
+
+    hex.unitStack.moveUnitIdToTop(unitId);
+    this.view.panToHex(unit.hexCoord);
+    this.view.setSelectedHex(unit.hexCoord);
+  }
 
   /**
    * Randomly walk all units on the map to another hex. Units will not end up on the same target hexes.
@@ -103,7 +130,6 @@ export class BWARController {
     this.setHeaderTextMessage(
       `Moving units: ${this.view.state.numOfUnitsMoving}`
     );
-    this.setButtonDisabled(true);
   }
 
   /**
@@ -214,7 +240,13 @@ export class BWARController {
 
     // If there is no unit, move there
     if (!clickedHexTopUnitId) {
-      this.moveUnitIdToHexCoord(selectedHexTopUnitId, clickedHexCoord, true, true, false);
+      this.moveUnitIdToHexCoord(
+        selectedHexTopUnitId,
+        clickedHexCoord,
+        true,
+        true,
+        false
+      );
       return;
     }
 
@@ -225,7 +257,13 @@ export class BWARController {
         clickedHexTopUnitId
       )
     ) {
-      this.moveUnitIdToHexCoord(selectedHexTopUnitId, clickedHexCoord, true, true, false);
+      this.moveUnitIdToHexCoord(
+        selectedHexTopUnitId,
+        clickedHexCoord,
+        true,
+        true,
+        false
+      );
       //this.setHeaderTextMessage("Joined stack");
       return;
     }
@@ -325,7 +363,6 @@ export class BWARController {
       this.setHeaderTextMessage(`Moving units: ${numOfUnitsMoving}`);
     } else {
       this.setHeaderTextMessage("None");
-      this.setButtonDisabled(false);
     }
   }
 
@@ -381,7 +418,6 @@ export class BWARController {
           shouldUpdateSelectedHex,
           shouldSignalMoveEnd
         );
-        this.setButtonDisabled(true);
       } else {
         this.view.moveUnitIdToHexCoord(unitId, targetHexCoord);
       }

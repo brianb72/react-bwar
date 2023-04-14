@@ -297,6 +297,75 @@ export class OrderOfBattle {
         Lookup
    ************************************************************************ */
 
+
+  getDataForTreeView() {
+    const sides = [];
+    for (const sideId of Object.keys(this.oob.sides)) {
+      const side = this.oob.sides[sideId];
+      const sideValues = { soft: 0, hard: 0, defense: 0 };
+      const forces = [];
+      for (const forceId of this.oob.sides[sideId].forces) {
+        const force = this.oob.forces[forceId];
+        const forceValues = { soft: 0, hard: 0, defense: 0 };
+        const formations = [];
+        for (const formationId of this.oob.forces[forceId].formations) {
+          const formation = this.oob.formations[formationId];
+          const formationValues = { soft: 0, hard: 0, defense: 0 };
+          const units = [];
+          for (const unitId of this.oob.formations[formationId].units) {
+            const unit = this.oob.units[unitId];
+            const unitValues = {
+              soft: unit.values?.attackSoft || 0,
+              hard: unit.values?.attackHard || 0,
+              defense: unit.values?.defense || 0,
+            };
+            for (const [k, v] of Object.entries(unitValues)) {
+              formationValues[k] += v;
+              forceValues[k] += v;
+              sideValues[k] += v;
+            }
+            units.push({
+              unitId: unitId,
+              name: unit.name,
+              soft: unitValues.soft,
+              hard: unitValues.hard,
+              defense: unitValues.defense,
+            });
+          }
+          if (units.length > 0) {
+            formations.push({
+              formationId: formationId,
+              name: formation.name,
+              soft: formationValues.soft,
+              hard: formationValues.hard,
+              defense: formationValues.defense,
+              units: units
+              
+            });
+          }
+        }
+        forces.push({
+          forceId: forceId,
+          name: force.name,
+          soft: forceValues.soft,
+          hard: forceValues.hard,
+          defense: forceValues.defense,
+          formations: formations
+        })
+      }
+      sides.push({
+        sideId: sideId,
+        name: side.name,
+        soft: sideValues.soft,
+        hard: sideValues.hard,
+        defense: sideValues.defense,
+        forces: forces
+      })      
+    }
+
+      return sides
+  }
+
   /**
    * Gets an array of all UnitIds in the oob
    * @returns {Array.<number>} Array of UnitIds

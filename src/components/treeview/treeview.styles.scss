@@ -1,0 +1,53 @@
+
+.tv-container {
+    height: 100%;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    font-family: 'Roboto', sans-serif;
+}
+
+
+.tv-force {
+    color: white;
+    background-color: black;
+    height: 2.5rem;
+    text-indent: 1rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    user-select: none;
+}
+
+.tv-formation {
+    color: black;
+    background-color: saddlebrown;
+    height: 2rem;
+    text-indent: 2.5rem;
+    font-size: 1.10rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    user-select: none;
+}
+
+.tv-unit {
+    color: black;
+    background-color: white;
+    height: 2rem;
+    text-indent: 5rem;
+    font-weight: bold;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    user-select: none;
+}
+
+.tv-unit-selected {
+    background-color: silver;
+}
+
+.tv-row-spacer { 
+    background-color: white;
+    height: 2rem;
+}
